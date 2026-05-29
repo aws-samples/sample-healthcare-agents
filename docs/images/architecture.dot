@@ -1,0 +1,131 @@
+digraph architecture {
+    rankdir=TB
+    fontname="Arial"
+    fontsize=14
+    node [fontname="Arial" fontsize=10 style="filled,rounded" shape=box margin="0.15,0.08"]
+    edge [fontname="Arial" fontsize=8]
+    compound=true
+    newrank=true
+    nodesep=0.4
+    ranksep=0.7
+    pad=0.3
+
+    /* ── Entry Points ── */
+    subgraph cluster_entry {
+        label="Entry Points"
+        style="rounded,filled"
+        fillcolor="#E8F4FD"
+        color="#4A90D9"
+        fontsize=12
+        fontcolor="#2C3E50"
+
+        ehr  [label="EHR System\n(CDS Hooks)"       fillcolor="#BBDEFB" color="#1976D2"]
+        ui   [label="AWS Amplify\nFrontend (Chat UI)" fillcolor="#BBDEFB" color="#1976D2"]
+        conn [label="Amazon Connect\nHealth"          fillcolor="#BBDEFB" color="#1976D2"]
+    }
+
+    /* ── AgentCore Runtime ── */
+    subgraph cluster_runtime {
+        label="Amazon Bedrock AgentCore Runtime"
+        style="rounded,filled"
+        fillcolor="#FFF8E1"
+        color="#F5A623"
+        fontsize=12
+        fontcolor="#2C3E50"
+
+        /* Prior Auth Agents */
+        subgraph cluster_pa {
+            label="Prior Authorization Agents"
+            style="dashed,filled"
+            fillcolor="#E8F5E9"
+            color="#4CAF50"
+            fontsize=10
+
+            pa   [label="Prior Authorization\nAgent"        fillcolor="#C8E6C9" color="#388E3C"]
+            elig [label="Eligibility Verification\nAgent"   fillcolor="#C8E6C9" color="#388E3C"]
+        }
+
+        /* RCM Agents */
+        subgraph cluster_rcm {
+            label="RCM Agents"
+            style="dashed,filled"
+            fillcolor="#E8F5E9"
+            color="#4CAF50"
+            fontsize=10
+
+            coding     [label="Medical Coding\nAgent"     fillcolor="#C8E6C9" color="#388E3C"]
+            assembly   [label="Claims Assembly\nAgent"    fillcolor="#C8E6C9" color="#388E3C"]
+            submission [label="Claims Submission\nAgent"  fillcolor="#C8E6C9" color="#388E3C"]
+            appeals    [label="Appeals\nAgent"            fillcolor="#C8E6C9" color="#388E3C"]
+        }
+
+        /* AgentCore Platform */
+        subgraph cluster_platform {
+            label="AgentCore Platform"
+            style="rounded,filled"
+            fillcolor="#FFF3E0"
+            color="#FF9800"
+            fontsize=10
+
+            gw    [label="Gateway"        fillcolor="#FFE0B2" color="#F57C00"]
+            ident [label="Identity"        fillcolor="#FFE0B2" color="#F57C00"]
+            mem   [label="Memory"          fillcolor="#FFE0B2" color="#F57C00"]
+            obs   [label="Observability"   fillcolor="#FFE0B2" color="#F57C00"]
+        }
+    }
+
+    /* ── Gateway Tools ── */
+    subgraph cluster_tools {
+        label="Gateway Tools"
+        style="rounded,filled"
+        fillcolor="#FCE4EC"
+        color="#E91E63"
+        fontsize=12
+        fontcolor="#2C3E50"
+
+        healthlake [label="HealthLake\n(FHIR R4)"     fillcolor="#F8BBD0" color="#C2185B"]
+        payor_kb   [label="Payor\nPolicy KB"          fillcolor="#F8BBD0" color="#C2185B"]
+        cds        [label="CDS\nHooks"                fillcolor="#F8BBD0" color="#C2185B"]
+        comprehend [label="Comprehend\nMedical"        fillcolor="#F8BBD0" color="#C2185B"]
+        b2bi       [label="B2B Data\nInterchange"      fillcolor="#F8BBD0" color="#C2185B"]
+        val_kb     [label="Validation\nRules KB"       fillcolor="#F8BBD0" color="#C2185B"]
+        med_kb     [label="Medical\nCodes KB"          fillcolor="#F8BBD0" color="#C2185B"]
+        s3         [label="S3\n(Appeal Letters)"       fillcolor="#F8BBD0" color="#C2185B"]
+        appeals_kb [label="Appeals KB\n(Denial Codes,\nRegulations,\nGuidelines)" fillcolor="#F8BBD0" color="#C2185B"]
+    }
+
+    /* ── Entry → Agents ── */
+    ehr  -> pa   [style=dashed color="#4A90D9"]
+    ui   -> pa   [color="#4A90D9"]
+    ui   -> coding [color="#4A90D9"]
+    conn -> pa   [color="#4A90D9"]
+
+    /* ── Agent → Agent (RCM pipeline) ── */
+    coding -> assembly     [style=dashed color="#666666" label="codes"]
+    assembly -> submission [style=dashed color="#666666" label="837P"]
+
+    /* ── Agents → Gateway ── */
+    pa         -> gw [color="#FF9800"]
+    elig       -> gw [color="#FF9800"]
+    coding     -> gw [color="#FF9800"]
+    assembly   -> gw [color="#FF9800"]
+    submission -> gw [color="#FF9800"]
+    appeals    -> gw [color="#FF9800"]
+
+    /* ── Gateway → Tools ── */
+    gw -> healthlake [color="#E91E63"]
+    gw -> payor_kb   [color="#E91E63"]
+    gw -> cds        [color="#E91E63"]
+    gw -> comprehend [color="#E91E63"]
+    gw -> b2bi       [color="#E91E63"]
+    gw -> val_kb     [color="#E91E63"]
+    gw -> med_kb     [color="#E91E63"]
+    gw -> s3         [color="#E91E63"]
+    gw -> appeals_kb [color="#E91E63"]
+
+    /* ── Layout hints ── */
+    {rank=same; ehr; ui; conn}
+    {rank=same; pa; elig}
+    {rank=same; coding; assembly; submission; appeals}
+    {rank=same; gw; ident; mem; obs}
+}

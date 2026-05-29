@@ -1,0 +1,88 @@
+{
+  "tools": [
+    {
+      "name": "search_payor_policies",
+      "description": "Search payor prior authorization policy documents using semantic search. Finds relevant coverage criteria, medical necessity requirements, and documentation requirements from uploaded payor policy documents.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Natural language search query (e.g., 'MRI lumbar spine prior auth requirements for UnitedHealthcare')"
+          },
+          "payor_name": {
+            "type": "string",
+            "description": "Optional: Filter by payor name (e.g., 'UnitedHealthcare', 'Aetna', 'Blue Cross Blue Shield')"
+          },
+          "procedure_code": {
+            "type": "string",
+            "description": "Optional: CPT or HCPCS procedure code to search for"
+          },
+          "max_results": {
+            "type": "integer",
+            "description": "Maximum number of results to return (default: 5)"
+          }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "upload_policy_document",
+      "description": "Upload a payor policy document to the knowledge base for indexing. Supports prior auth policies, coverage criteria, medical necessity guidelines, and formularies. Documents are stored in S3 and automatically indexed for semantic search.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "document_content": {
+            "type": "string",
+            "description": "The document content as text"
+          },
+          "payor_name": {
+            "type": "string",
+            "description": "Name of the insurance payor (e.g., 'UnitedHealthcare')"
+          },
+          "document_type": {
+            "type": "string",
+            "description": "Type of document: prior_auth_policy, coverage_criteria, medical_necessity, formulary, general"
+          },
+          "filename": {
+            "type": "string",
+            "description": "Optional filename. Auto-generated if not provided."
+          }
+        },
+        "required": ["document_content", "payor_name", "document_type"]
+      }
+    },
+    {
+      "name": "list_policy_documents",
+      "description": "List uploaded payor policy documents. Optionally filter by payor name.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "payor_name": {
+            "type": "string",
+            "description": "Optional: Filter by payor name"
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "lookup_prior_auth_requirements",
+      "description": "Look up prior authorization requirements for a specific CPT/HCPCS procedure code. Combines knowledge base search with structured reference data to determine if prior auth is required and what documentation is needed.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "procedure_code": {
+            "type": "string",
+            "description": "CPT or HCPCS procedure code (e.g., '72148' for MRI Lumbar Spine)"
+          },
+          "payor_name": {
+            "type": "string",
+            "description": "Optional: Payor name for payor-specific rules"
+          }
+        },
+        "required": ["procedure_code"]
+      }
+    }
+  ]
+}

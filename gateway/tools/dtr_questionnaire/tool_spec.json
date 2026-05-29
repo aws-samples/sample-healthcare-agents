@@ -1,0 +1,54 @@
+{
+  "tools": [
+    {
+      "name": "fetch_questionnaire",
+      "description": "Fetch a FHIR Questionnaire resource from a payer's DTR endpoint URL. Returns the full Questionnaire resource for rendering in the PA workflow.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "questionnaire_url": {
+            "type": "string",
+            "description": "The full URL of the payer's FHIR Questionnaire endpoint"
+          }
+        },
+        "required": ["questionnaire_url"]
+      }
+    },
+    {
+      "name": "eval_expressions",
+      "description": "Evaluate initialExpression and calculatedExpression extensions in a FHIR Questionnaire against patient data from HealthLake. Returns auto-fill results with linkId, source resource ID, and resolved value for each item with an expression.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "questionnaire": {
+            "type": "object",
+            "description": "The FHIR Questionnaire resource to evaluate expressions for"
+          },
+          "patient_id": {
+            "type": "string",
+            "description": "The patient's FHIR ID to resolve expressions against"
+          }
+        },
+        "required": ["questionnaire", "patient_id"]
+      }
+    },
+    {
+      "name": "get_dtr_config",
+      "description": "Look up DTR Questionnaire configuration for a given payer and procedure code. Returns the questionnaire URL and metadata if a DTR questionnaire is configured for the payer/procedure combination.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "payer_name": {
+            "type": "string",
+            "description": "The name of the insurance payer (e.g., 'Blue Cross Blue Shield', 'UnitedHealthcare')"
+          },
+          "procedure_code": {
+            "type": "string",
+            "description": "The CPT or HCPCS procedure code (e.g., '72148')"
+          }
+        },
+        "required": ["payer_name", "procedure_code"]
+      }
+    }
+  ]
+}

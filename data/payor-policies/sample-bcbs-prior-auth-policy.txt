@@ -1,0 +1,85 @@
+Blue Cross Blue Shield - Prior Authorization Policy Guidelines
+==============================================================
+
+EFFECTIVE DATE: January 1, 2025
+
+SECTION 1: PROCEDURES REQUIRING PRIOR AUTHORIZATION
+
+The following categories of services require prior authorization before
+the service is rendered:
+
+1.1 Advanced Imaging
+- MRI (all body regions): CPT 70551-70559, 72141-72158, 73218-73225, 74181-74183
+- CT Scan (all body regions): CPT 70450-70498, 72125-72133, 74150-74178
+- PET Scan: CPT 78811-78816
+- Nuclear Medicine: CPT 78300-78399
+
+1.2 Surgical Procedures
+- Joint Replacement (hip, knee, shoulder): CPT 27130, 27447, 23472
+- Spinal Surgery: CPT 22551-22558, 22612-22614, 63001-63048
+- Bariatric Surgery: CPT 43644, 43645, 43770-43775
+- Cardiac Surgery: CPT 33510-33536
+
+1.3 Specialty Medications
+- Biologic agents (all)
+- Specialty infusion medications
+- Gene therapy
+- Oncology medications (select)
+
+1.4 Durable Medical Equipment (DME)
+- Power wheelchairs and scooters
+- CPAP/BiPAP machines
+- Home oxygen therapy
+- Prosthetic devices over $1,000
+
+SECTION 2: MEDICAL NECESSITY CRITERIA
+
+2.1 Advanced Imaging (MRI/CT)
+Prior authorization for advanced imaging requires:
+- Clinical indication documented by ordering physician
+- Conservative treatment attempted for minimum 4-6 weeks (non-emergent)
+- Previous imaging results reviewed (if applicable)
+- Diagnosis code supporting the imaging study
+
+2.2 Joint Replacement Surgery
+Prior authorization requires:
+- Documented failure of conservative treatment (minimum 3 months)
+- Physical therapy attempted (minimum 6 weeks)
+- BMI documented (BMI > 40 may require additional review)
+- Pre-operative imaging (X-ray within 6 months)
+- Orthopedic specialist evaluation
+
+2.3 Spinal Surgery
+Prior authorization requires:
+- MRI or CT imaging within 6 months
+- Conservative treatment for minimum 6 weeks
+- Physical therapy documentation
+- Pain management consultation
+- Neurological examination findings
+
+SECTION 3: DOCUMENTATION REQUIREMENTS
+
+All prior authorization requests must include:
+1. Completed prior authorization request form
+2. Clinical notes from the ordering/referring physician
+3. Relevant diagnostic test results
+4. Treatment history and conservative measures attempted
+5. ICD-10 diagnosis code(s)
+6. CPT/HCPCS procedure code(s)
+7. Expected date of service
+8. Facility/provider information
+
+SECTION 4: SUBMISSION PROCESS
+
+- Electronic submission preferred via provider portal
+- Fax submissions accepted at 1-800-XXX-XXXX
+- Standard review: 5-7 business days
+- Urgent review: 24-72 hours (requires clinical justification)
+- Emergency: Retrospective review within 48 hours of service
+
+SECTION 5: APPEAL PROCESS
+
+If a prior authorization request is denied:
+- Level 1 Appeal: Submit within 30 days with additional documentation
+- Level 2 Appeal: Peer-to-peer review with medical director
+- External Review: Available after exhausting internal appeals
