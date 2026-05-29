@@ -1,0 +1,129 @@
+Code: 38341003
+Title: Hypertensive disorder
+Category: Clinical Finding
+Description: Disorder characterized by persistently elevated blood pressure
+Hierarchy: Clinical finding > Disease > Cardiovascular disease > Vascular disorder
+Clinical Context: Systemic arterial hypertension. Blood pressure consistently above normal range (>140/90 mmHg).
+Related Codes: 59621000 (Essential hypertension), 48194001 (Pregnancy-induced hypertension), 70272006 (Malignant hypertension)
+Synonyms: High blood pressure disorder, Hypertension, HTN, Elevated blood pressure
+
+---
+
+Code: 73211009
+Title: Diabetes mellitus
+Category: Clinical Finding
+Description: Metabolic disorder characterized by hyperglycemia due to insulin deficiency or resistance
+Hierarchy: Clinical finding > Disease > Endocrine disease > Glucose metabolism disorder
+Clinical Context: Chronic condition with elevated blood glucose. Includes Type 1, Type 2, and other forms.
+Related Codes: 44054006 (Type 2 diabetes mellitus), 46635009 (Type 1 diabetes mellitus), 11687002 (Gestational diabetes)
+Synonyms: DM, Diabetes, Sugar diabetes
+
+---
+
+Code: 22298006
+Title: Myocardial infarction
+Category: Clinical Finding
+Description: Death of heart muscle due to inadequate blood supply
+Hierarchy: Clinical finding > Disease > Cardiovascular disease > Heart disease
+Clinical Context: Heart attack. Acute coronary syndrome with myocardial necrosis. Medical emergency requiring immediate treatment.
+Related Codes: 401314000 (Acute ST segment elevation myocardial infarction), 401303003 (Acute non-ST segment elevation myocardial infarction)
+Synonyms: Heart attack, MI, Acute myocardial infarction, AMI
+
+---
+
+Code: 13645005
+Title: Chronic obstructive pulmonary disease
+Category: Clinical Finding
+Description: Progressive lung disease with persistent airflow limitation
+Hierarchy: Clinical finding > Disease > Respiratory disease > Obstructive lung disease
+Clinical Context: Includes chronic bronchitis and emphysema. Characterized by dyspnea, cough, and sputum production.
+Related Codes: 87433001 (Pulmonary emphysema), 63480004 (Chronic bronchitis)
+Synonyms: COPD, Chronic obstructive lung disease, Chronic obstructive airway disease
+
+---
+
+Code: 84114007
+Title: Heart failure
+Category: Clinical Finding
+Description: Inability of heart to maintain adequate cardiac output
+Hierarchy: Clinical finding > Disease > Cardiovascular disease > Heart disease
+Clinical Context: Heart cannot pump sufficient blood to meet body's needs. May be acute or chronic, systolic or diastolic.
+Related Codes: 85232009 (Left heart failure), 84094009 (Right heart failure), 42343007 (Congestive heart failure)
+Synonyms: Cardiac failure, Congestive heart failure, CHF
+
+---
+
+Code: 233604007
+Title: Pneumonia
+Category: Clinical Finding
+Description: Inflammatory condition of lung parenchyma
+Hierarchy: Clinical finding > Disease > Respiratory disease > Lung infection
+Clinical Context: Acute infection of alveoli and lung tissue. May be bacterial, viral, or fungal. Presents with cough, fever, dyspnea.
+Related Codes: 385093006 (Community acquired pneumonia), 233607000 (Hospital acquired pneumonia)
+Synonyms: Lung infection, Pulmonary infection
+
+---
+
+Code: 709044004
+Title: Chronic kidney disease
+Category: Clinical Finding
+Description: Progressive loss of kidney function over time
+Hierarchy: Clinical finding > Disease > Kidney disease > Chronic renal disease
+Clinical Context: Gradual decline in kidney function lasting >3 months. Staged by GFR (1-5).
+Related Codes: 431855005 (Chronic kidney disease stage 1), 431856006 (CKD stage 2), 433144002 (CKD stage 3), 431857002 (CKD stage 4), 433146000 (CKD stage 5)
+Synonyms: CKD, Chronic renal disease, Chronic renal failure, CRF
+
+---
+
+Code: 55822004
+Title: Hyperlipidemia
+Category: Clinical Finding
+Description: Elevated levels of lipids in blood
+Hierarchy: Clinical finding > Disease > Metabolic disease > Lipid metabolism disorder
+Clinical Context: Abnormally high cholesterol and/or triglycerides. Risk factor for atherosclerosis and cardiovascular disease.
+Related Codes: 13644009 (Hypercholesterolemia), 302870006 (Hypertriglyceridemia)
+Synonyms: High cholesterol, Dyslipidemia, Elevated lipids
+
+---
+
+Code: 48694002
+Title: Anxiety disorder
+Category: Clinical Finding
+Description: Mental disorder characterized by excessive fear and worry
+Hierarchy: Clinical finding > Mental disorder > Anxiety disorder
+Clinical Context: Persistent anxiety interfering with daily function. May include panic attacks, phobias, or generalized anxiety.
+Related Codes: 21897009 (Generalized anxiety disorder), 371631005 (Panic disorder)
+Synonyms: Anxiety, Anxiety state
+
+---
+
+Code: 235595009
+Title: Gastroesophageal reflux disease
+Category: Clinical Finding
+Description: Chronic reflux of gastric contents into esophagus
+Hierarchy: Clinical finding > Disease > Digestive disease > Esophageal disorder
+Clinical Context: GERD. Chronic heartburn and regurgitation due to lower esophageal sphincter dysfunction.
+Related Codes: 698065002 (Reflux esophagitis), 16331000 (Heartburn)
+Synonyms: GERD, Reflux disease, Acid reflux
+
+---
+
+Code: 161891005
+Title: Backache
+Category: Clinical Finding
+Description: Pain in back region
+Hierarchy: Clinical finding > Symptom > Pain > Back pain
+Clinical Context: Pain localized to back. May be acute or chronic, mechanical or inflammatory.
+Related Codes: 279039007 (Low back pain), 22913005 (Thoracic back pain)
+Synonyms: Back pain, Dorsalgia
+
+---
+
+Code: 49436004
+Title: Atrial fibrillation
+Category: Clinical Finding
+Description: Irregular, rapid heart rhythm originating in atria
+Hierarchy: Clinical finding > Disease > Cardiovascular disease > Cardiac arrhythmia
+Clinical Context: Most common sustained arrhythmia. Increases stroke risk. May be paroxysmal, persistent, or permanent.
+Related Codes: 282825002 (Paroxysmal atrial fibrillation), 426749004 (Chronic atrial fibrillation)
+Synonyms: AFib, AF, Auricular fibrillation

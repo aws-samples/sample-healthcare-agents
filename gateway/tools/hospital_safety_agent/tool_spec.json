@@ -1,0 +1,16 @@
+[
+  {
+    "name": "report_safety_incident",
+    "description": "Report a hospital safety incident (medication errors, patient falls, infections, device malfunctions) for analysis by a multi-agent AI system. The system provides structured classification, severity assessment, detailed analysis, and recommendations. Results are automatically stored in the hospital safety database and alerts are sent for high-severity incidents.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "description": "Description of the safety incident including: what happened, patient impact, location, staff involved, immediate actions taken, and any other relevant details"
+        }
+      },
+      "required": ["prompt"]
+    }
+  }
+]

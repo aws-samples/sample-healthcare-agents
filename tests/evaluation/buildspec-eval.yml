@@ -1,0 +1,65 @@
+# tests/evaluation/buildspec-eval.yml
+# Add as a CodeBuild stage after deployment in your pipeline.
+#
+# Required environment variables (set in CodeBuild project or SSM):
+#   LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, AWS_PROFILE or role-based auth
+
+version: 0.2
+
+env:
+  parameter-store:
+    LANGFUSE_PUBLIC_KEY: /healthcare-agents-stack/langfuse/public_key
+    LANGFUSE_SECRET_KEY: /healthcare-agents-stack/langfuse/secret_key
+
+phases:
+  install:
+    commands:
+      - pip install -r tests/evaluation/requirements.txt
+
+  build:
+    commands:
+      # Run eval for each agent in parallel (CodeBuild batch build) or sequentially
+      - |
+        AGENTS=(
+          "prior-authorization-agent"
+          "eligibility-verification-agent"
+          "medical-coding-agent"
+          "claims-assembly-agent"
+          "claims-submission-agent"
+          "appeals-agent"
+        )
+        RUN_DATE=$(date +%Y-%m-%d)
+        FAILED=0
+
+        for AGENT in "${AGENTS[@]}"; do
+          echo "========== Evaluating: ${AGENT} =========="
+          RUN_NAME="${AGENT}-${CODEBUILD_RESOLVED_SOURCE_VERSION:0:7}-${RUN_DATE}"
+
+          # Run experiment
+          python3 tests/evaluation/run_experiment.py \
+            --agent "$AGENT" \
+            --run-name "$RUN_NAME"
+
+          # Wait for LLM-as-judge scoring
+          echo "Waiting 90s for judge scoring..."
+          sleep 90
+
+          # Check gates
+          python3 tests/evaluation/check_gates.py \
+            --agent "$AGENT" \
+            --run-name "$RUN_NAME" || FAILED=1
+        done
+
+        # E2E workflow
+        echo "========== E2E Workflow =========="
+        python3 tests/evaluation/run_e2e_workflow.py \
+          --run-name "e2e-${CODEBUILD_RESOLVED_SOURCE_VERSION:0:7}-${RUN_DATE}"
+
+        if [ "$FAILED" -ne 0 ]; then
+          echo "DEPLOYMENT BLOCKED — one or more agents failed gates"
+          exit 1
+        fi
+
+  post_build:
+    commands:
+      - echo "All evaluation gates passed"

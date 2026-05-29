@@ -1,0 +1,117 @@
+Code: I10
+Title: Essential (primary) hypertension
+Category: Hypertensive diseases
+Description: High blood pressure without identified secondary cause
+Clinical Context: Chronic elevation of blood pressure, typically >140/90 mmHg. Most common form of hypertension.
+Related Codes: I11 (Hypertensive heart disease), I12 (Hypertensive chronic kidney disease), I13 (Hypertensive heart and chronic kidney disease)
+Includes: High blood pressure, HBP, HTN, Arterial hypertension
+
+---
+
+Code: E11.9
+Title: Type 2 diabetes mellitus without complications
+Category: Diabetes mellitus
+Description: Non-insulin dependent diabetes mellitus without complications
+Clinical Context: Adult-onset diabetes, typically managed with oral medications and lifestyle modifications. Blood glucose consistently elevated.
+Related Codes: E11.0-E11.8 (Type 2 diabetes with complications), E10 (Type 1 diabetes)
+Includes: Diabetes NOS, NIDDM, Adult-onset diabetes
+
+---
+
+Code: I21.0
+Title: ST elevation (STEMI) myocardial infarction of anterior wall
+Category: Acute myocardial infarction
+Description: Acute heart attack with ST segment elevation affecting anterior wall
+Clinical Context: Life-threatening condition requiring immediate intervention. ECG shows ST elevation in anterior leads (V1-V4).
+Related Codes: I21.1 (Inferior wall MI), I21.2 (Other sites), I21.3 (Transmural MI), I21.4 (Non-ST elevation MI)
+Excludes: Old myocardial infarction (I25.2)
+
+---
+
+Code: J44.9
+Title: Chronic obstructive pulmonary disease, unspecified
+Category: Chronic lower respiratory diseases
+Description: Progressive lung disease with airflow limitation, unspecified type
+Clinical Context: Includes chronic bronchitis and emphysema. Characterized by persistent respiratory symptoms and airflow limitation.
+Related Codes: J44.0 (COPD with acute lower respiratory infection), J44.1 (COPD with acute exacerbation)
+Includes: COPD NOS, Chronic obstructive airway disease
+
+---
+
+Code: I50.9
+Title: Heart failure, unspecified
+Category: Heart failure
+Description: Inability of heart to pump sufficient blood, type unspecified
+Clinical Context: Heart cannot meet body's demands for blood and oxygen. May be systolic or diastolic dysfunction.
+Related Codes: I50.1 (Left ventricular failure), I50.2 (Systolic heart failure), I50.3 (Diastolic heart failure)
+Includes: Cardiac failure NOS, Heart failure NOS, Congestive heart failure
+
+---
+
+Code: J18.9
+Title: Pneumonia, unspecified organism
+Category: Pneumonia
+Description: Lung infection with unidentified causative organism
+Clinical Context: Acute infection of lung parenchyma. Use when specific organism not identified or documented.
+Related Codes: J15 (Bacterial pneumonia), J12 (Viral pneumonia), J18.0 (Bronchopneumonia)
+Includes: Pneumonia NOS
+
+---
+
+Code: N18.3
+Title: Chronic kidney disease, stage 3 (moderate)
+Category: Chronic kidney disease
+Description: Moderate decrease in kidney function (GFR 30-59 mL/min/1.73m²)
+Clinical Context: Moderate loss of kidney function. May require specialist referral and monitoring.
+Related Codes: N18.1 (CKD stage 1), N18.2 (CKD stage 2), N18.4 (CKD stage 4), N18.5 (CKD stage 5)
+Includes: CKD stage 3, Moderate CKD
+
+---
+
+Code: E78.5
+Title: Hyperlipidemia, unspecified
+Category: Disorders of lipoprotein metabolism
+Description: Elevated lipids in blood, type unspecified
+Clinical Context: Abnormally high levels of lipids (cholesterol, triglycerides) in blood. Risk factor for cardiovascular disease.
+Related Codes: E78.0 (Pure hypercholesterolemia), E78.1 (Pure hyperglyceridemia), E78.2 (Mixed hyperlipidemia)
+Includes: Hyperlipidemia NOS, High cholesterol
+
+---
+
+Code: F41.9
+Title: Anxiety disorder, unspecified
+Category: Anxiety disorders
+Description: Excessive worry and fear, type unspecified
+Clinical Context: Persistent anxiety not meeting criteria for specific anxiety disorder. May include generalized anxiety symptoms.
+Related Codes: F41.0 (Panic disorder), F41.1 (Generalized anxiety disorder), F41.8 (Other anxiety disorders)
+Includes: Anxiety NOS, Anxiety reaction
+
+---
+
+Code: K21.9
+Title: Gastro-esophageal reflux disease without esophagitis
+Category: Diseases of esophagus
+Description: Chronic reflux of stomach contents into esophagus without inflammation
+Clinical Context: GERD without evidence of esophageal damage. Symptoms include heartburn and regurgitation.
+Related Codes: K21.0 (GERD with esophagitis), K22 (Other diseases of esophagus)
+Includes: GERD NOS, Reflux esophagitis NOS
+
+---
+
+Code: Z79.4
+Title: Long term (current) use of insulin
+Category: Persons with potential health hazards
+Description: Patient currently using insulin therapy long-term
+Clinical Context: Use as secondary code with diabetes code. Indicates ongoing insulin therapy.
+Related Codes: Z79.84 (Long term use of oral hypoglycemic drugs)
+Includes: Insulin dependent
+
+---
+
+Code: M25.511
+Title: Pain in right shoulder
+Category: Joint disorders
+Description: Pain localized to right shoulder joint
+Clinical Context: Shoulder pain, may be due to various causes including rotator cuff injury, arthritis, or bursitis.
+Related Codes: M25.512 (Pain in left shoulder), M75 (Shoulder lesions)
+Includes: Right shoulder pain

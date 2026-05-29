@@ -1,0 +1,106 @@
+{
+  "payers": [
+    {
+      "payer_name": "Blue Cross Blue Shield",
+      "aliases": ["BCBS", "BlueCross", "Blue Cross"],
+      "questionnaires": [
+        {
+          "procedure_code": "72148",
+          "procedure_display": "MRI Lumbar Spine without contrast",
+          "questionnaire_url": "https://bcbs.example.com/fhir/Questionnaire/mri-lumbar-pa",
+          "questionnaire_id": "mri-lumbar-pa"
+        },
+        {
+          "procedure_code": "72149",
+          "procedure_display": "MRI Lumbar Spine with contrast",
+          "questionnaire_url": "https://bcbs.example.com/fhir/Questionnaire/mri-lumbar-contrast-pa",
+          "questionnaire_id": "mri-lumbar-contrast-pa"
+        },
+        {
+          "procedure_code": "27447",
+          "procedure_display": "Total Knee Replacement",
+          "questionnaire_url": "https://bcbs.example.com/fhir/Questionnaire/knee-replacement-pa",
+          "questionnaire_id": "knee-replacement-pa"
+        },
+        {
+          "procedure_code": "70553",
+          "procedure_display": "MRI Brain with and without contrast",
+          "questionnaire_url": "https://bcbs.example.com/fhir/Questionnaire/mri-brain-pa",
+          "questionnaire_id": "mri-brain-pa"
+        }
+      ]
+    },
+    {
+      "payer_name": "UnitedHealthcare",
+      "aliases": ["UHC", "United", "UnitedHealth"],
+      "questionnaires": [
+        {
+          "procedure_code": "72148",
+          "procedure_display": "MRI Lumbar Spine without contrast",
+          "questionnaire_url": "https://uhc.example.com/fhir/Questionnaire/mri-spine-pa",
+          "questionnaire_id": "mri-spine-pa"
+        },
+        {
+          "procedure_code": "27447",
+          "procedure_display": "Total Knee Replacement",
+          "questionnaire_url": "https://uhc.example.com/fhir/Questionnaire/joint-replacement-pa",
+          "questionnaire_id": "joint-replacement-pa"
+        },
+        {
+          "procedure_code": "43239",
+          "procedure_display": "Upper GI Endoscopy with Biopsy",
+          "questionnaire_url": "https://uhc.example.com/fhir/Questionnaire/endoscopy-pa",
+          "questionnaire_id": "endoscopy-pa"
+        }
+      ]
+    },
+    {
+      "payer_name": "Aetna",
+      "aliases": ["Aetna", "CVS Aetna"],
+      "questionnaires": [
+        {
+          "procedure_code": "72148",
+          "procedure_display": "MRI Lumbar Spine without contrast",
+          "questionnaire_url": "https://aetna.example.com/fhir/Questionnaire/mri-lumbar-pa",
+          "questionnaire_id": "mri-lumbar-pa"
+        },
+        {
+          "procedure_code": "70551",
+          "procedure_display": "MRI Brain without contrast",
+          "questionnaire_url": "https://aetna.example.com/fhir/Questionnaire/mri-brain-pa",
+          "questionnaire_id": "mri-brain-pa"
+        }
+      ]
+    },
+    {
+      "payer_name": "Cigna",
+      "aliases": ["Cigna", "The Cigna Group"],
+      "questionnaires": [
+        {
+          "procedure_code": "72148",
+          "procedure_display": "MRI Lumbar Spine without contrast",
+          "questionnaire_url": "https://cigna.example.com/fhir/Questionnaire/mri-spine-pa",
+          "questionnaire_id": "mri-spine-pa"
+        },
+        {
+          "procedure_code": "27130",
+          "procedure_display": "Total Hip Replacement",
+          "questionnaire_url": "https://cigna.example.com/fhir/Questionnaire/hip-replacement-pa",
+          "questionnaire_id": "hip-replacement-pa"
+        }
+      ]
+    },
+    {
+      "payer_name": "Humana",
+      "aliases": ["Humana"],
+      "questionnaires": [
+        {
+          "procedure_code": "72148",
+          "procedure_display": "MRI Lumbar Spine without contrast",
+          "questionnaire_url": "https://humana.example.com/fhir/Questionnaire/mri-lumbar-pa",
+          "questionnaire_id": "mri-lumbar-pa"
+        }
+      ]
+    }
+  ]
+}
