@@ -1,0 +1,17 @@
+# Hospital Safety Agent Dependencies
+
+# Strands agent framework
+strands-agents>=1.16.0
+
+# AgentCore integrations
+bedrock-agentcore[strands-agents]>=1.0.6
+
+# AWS SDK
+boto3>=1.42.0
+botocore>=1.42.0
+
+# HTTP client for FDA API
+requests>=2.32.0
+
+# OpenTelemetry (for observability)
+aws-opentelemetry-distro==0.10.1

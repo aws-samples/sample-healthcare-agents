@@ -1,0 +1,59 @@
+{
+  "tools": [
+    {
+      "name": "get_cds_services",
+      "description": "CDS Hooks service discovery. Returns the list of available CDS Hook services for EHR integration (patient-view, order-select).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "name": "handle_patient_view",
+      "description": "CDS Hooks patient-view handler. Triggered when a provider opens a patient chart. Retrieves patient conditions from HealthLake and returns informational cards about conditions that may require prior authorization.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "context": {
+            "type": "object",
+            "description": "CDS Hooks context containing patientId",
+            "properties": {
+              "patientId": {
+                "type": "string",
+                "description": "FHIR Patient resource ID"
+              }
+            },
+            "required": ["patientId"]
+          }
+        },
+        "required": ["context"]
+      }
+    },
+    {
+      "name": "handle_order_select",
+      "description": "CDS Hooks order-select handler. Triggered when a provider selects an order. Evaluates whether prior authorization is required based on patient coverage, the ordered procedure/medication, and payor-specific rules. Returns CDS cards with prior auth determination.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "context": {
+            "type": "object",
+            "description": "CDS Hooks context containing patientId and draftOrders",
+            "properties": {
+              "patientId": {
+                "type": "string",
+                "description": "FHIR Patient resource ID"
+              },
+              "draftOrders": {
+                "type": "object",
+                "description": "FHIR Bundle of draft orders (MedicationRequest, ServiceRequest)"
+              }
+            },
+            "required": ["patientId"]
+          }
+        },
+        "required": ["context"]
+      }
+    }
+  ]
+}

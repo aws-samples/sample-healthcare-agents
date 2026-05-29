@@ -1,0 +1,81 @@
+UnitedHealthcare - Prior Authorization Requirements
+====================================================
+
+EFFECTIVE DATE: January 1, 2025
+
+OVERVIEW
+UnitedHealthcare requires prior authorization for select medical services,
+procedures, and medications to ensure medical necessity and appropriate
+utilization of healthcare resources.
+
+SERVICES REQUIRING PRIOR AUTHORIZATION
+
+Category 1: Diagnostic Imaging
+- MRI (all regions): Prior auth required for all non-emergent MRI studies
+  CPT Codes: 70551-70559, 72141-72158, 73218-73225
+- CT with contrast: Prior auth required
+  CPT Codes: 70460-70498, 72126-72133, 74160-74178
+- PET/CT: Prior auth always required
+  CPT Codes: 78811-78816
+
+Category 2: Outpatient Surgical Procedures
+- Orthopedic: Joint replacement, arthroscopy, spinal procedures
+- Cardiac: Catheterization, stenting, bypass
+- General: Hernia repair (select), cholecystectomy (select)
+- Oncologic: Biopsies requiring sedation
+
+Category 3: Specialty Pharmacy
+- All biologic medications
+- Specialty infusions (administered in office or home)
+- Oncology oral medications (select)
+- Rare disease medications
+
+Category 4: Behavioral Health
+- Inpatient psychiatric admission
+- Residential treatment
+- Intensive outpatient programs
+- Electroconvulsive therapy (ECT)
+
+MEDICAL NECESSITY CRITERIA FOR IMAGING
+
+MRI Lumbar Spine (CPT 72148, 72149, 72158):
+- Required: Documented back pain for minimum 4 weeks
+- Required: Failed conservative treatment (NSAIDs, physical therapy)
+- Required: Neurological symptoms (radiculopathy, weakness, numbness)
+  OR red flag symptoms (bowel/bladder dysfunction, progressive weakness)
+- Supporting: Previous X-ray results
+- Supporting: Physical therapy notes
+
+MRI Brain (CPT 70551, 70553):
+- Required: Clinical indication (headache with red flags, neurological deficit,
+  seizure, suspected mass)
+- Required: Neurological examination documented
+- Supporting: Previous imaging if available
+
+CT Abdomen/Pelvis (CPT 74177, 74178):
+- Required: Clinical indication documented
+- Required: Relevant lab results (if applicable)
+- Supporting: Previous imaging results
+
+DOCUMENTATION REQUIREMENTS
+
+Minimum required documentation:
+1. Prior authorization request form (electronic preferred)
+2. Office visit notes from ordering physician (within 30 days)
+3. Relevant diagnostic results (labs, imaging)
+4. Treatment history showing conservative measures
+5. ICD-10 diagnosis codes
+6. CPT procedure codes
+7. Rendering provider NPI
+8. Facility NPI (if applicable)
+
+TURNAROUND TIMES
+- Standard: 5 business days
+- Urgent: 24 hours
+- Concurrent (inpatient): Same day
+- Retrospective: 30 calendar days
+
+CONTACT INFORMATION
+- Provider portal: uhcprovider.com
+- Phone: 1-800-XXX-XXXX
+- Fax: 1-800-XXX-XXXX

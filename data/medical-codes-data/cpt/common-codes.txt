@@ -1,0 +1,117 @@
+Code: 99213
+Title: Office or other outpatient visit, established patient, level 3
+Category: Evaluation and Management
+Description: Office visit for established patient requiring moderate level of medical decision making
+Time: 20-29 minutes of total time on date of encounter
+Medical Decision Making: Low complexity
+Clinical Context: Follow-up visit for stable chronic conditions, minor acute problems. Requires 2 of 3: problem-focused history, problem-focused exam, low complexity MDM.
+Related Codes: 99212 (Level 2), 99214 (Level 4), 99215 (Level 5)
+Documentation Requirements: Problem-focused history and exam, low complexity medical decision making
+
+---
+
+Code: 99214
+Title: Office or other outpatient visit, established patient, level 4
+Category: Evaluation and Management
+Description: Office visit for established patient requiring moderate level of medical decision making
+Time: 30-39 minutes of total time on date of encounter
+Medical Decision Making: Moderate complexity
+Clinical Context: Visit for multiple problems, worsening chronic condition, or new problem with uncertain prognosis. Detailed history and exam.
+Related Codes: 99213 (Level 3), 99215 (Level 5)
+Documentation Requirements: Detailed history and exam, moderate complexity MDM
+
+---
+
+Code: 99285
+Title: Emergency department visit, high severity
+Category: Emergency Department Services
+Description: Emergency department visit for patient with high severity problem
+Time: Typically 60+ minutes
+Medical Decision Making: High complexity
+Clinical Context: Life-threatening or severe problems requiring immediate physician attention. Examples: chest pain with cardiac concerns, severe trauma, acute stroke.
+Related Codes: 99281 (Level 1), 99282 (Level 2), 99283 (Level 3), 99284 (Level 4)
+Examples: Acute MI, severe trauma, stroke, respiratory failure
+
+---
+
+Code: 93000
+Title: Electrocardiogram, routine ECG with at least 12 leads
+Category: Cardiovascular
+Description: Complete ECG with interpretation and report
+Clinical Context: Standard 12-lead ECG for cardiac evaluation. Includes tracing, interpretation, and written report.
+Related Codes: 93005 (ECG tracing only), 93010 (ECG interpretation only)
+Includes: EKG, 12-lead ECG
+
+---
+
+Code: 80053
+Title: Comprehensive metabolic panel
+Category: Pathology and Laboratory
+Description: Blood test panel including glucose, electrolytes, kidney and liver function
+Clinical Context: Includes albumin, bilirubin, calcium, carbon dioxide, chloride, creatinine, glucose, potassium, sodium, total protein, ALT, AST, alkaline phosphatase, BUN.
+Related Codes: 80048 (Basic metabolic panel), 80061 (Lipid panel)
+Includes: CMP, Chemistry panel
+
+---
+
+Code: 36415
+Title: Collection of venous blood by venipuncture
+Category: Surgery - Cardiovascular
+Description: Drawing blood from vein using needle
+Clinical Context: Routine blood draw for laboratory testing. Does not include laboratory analysis.
+Related Codes: 36416 (Collection from child), 36400 (Venipuncture under age 3)
+Includes: Blood draw, Phlebotomy
+
+---
+
+Code: 99203
+Title: Office or other outpatient visit, new patient, level 3
+Category: Evaluation and Management
+Description: Office visit for new patient requiring moderate level of medical decision making
+Time: 30-44 minutes of total time on date of encounter
+Medical Decision Making: Low complexity
+Clinical Context: New patient visit for straightforward problem. Detailed history and exam required.
+Related Codes: 99202 (Level 2), 99204 (Level 4), 99205 (Level 5)
+Documentation Requirements: Detailed history and exam, low complexity MDM
+
+---
+
+Code: 71046
+Title: Radiologic examination, chest; 2 views
+Category: Radiology
+Description: Chest X-ray with 2 views (typically PA and lateral)
+Clinical Context: Standard chest radiograph for evaluation of lungs, heart, and chest structures. Includes interpretation and report.
+Related Codes: 71045 (Single view), 71047 (3 views), 71048 (4+ views)
+Includes: Chest X-ray, CXR 2 views
+
+---
+
+Code: 90471
+Title: Immunization administration, first injection
+Category: Medicine - Immunizations
+Description: Administration of first vaccine in series or single vaccine
+Clinical Context: Includes counseling when performed. Use with vaccine product code.
+Related Codes: 90472 (Each additional injection), 90473 (Intranasal/oral vaccine)
+Includes: Vaccine administration
+
+---
+
+Code: 99232
+Title: Subsequent hospital care, per day
+Category: Evaluation and Management - Hospital
+Description: Daily hospital visit for established inpatient, moderate complexity
+Time: 25 minutes average
+Medical Decision Making: Moderate complexity
+Clinical Context: Follow-up visit for hospitalized patient with stable or improving condition.
+Related Codes: 99231 (Level 1), 99233 (Level 3)
+Documentation Requirements: Problem-focused interval history, exam, moderate MDM
+
+---
+
+Code: 45378
+Title: Colonoscopy, flexible; diagnostic
+Category: Surgery - Digestive
+Description: Diagnostic colonoscopy examining entire colon
+Clinical Context: Complete examination of colon from rectum to cecum. Includes conscious sedation when performed.
+Related Codes: 45380 (With biopsy), 45385 (With polyp removal)
+Includes: Screening colonoscopy, Diagnostic colonoscopy

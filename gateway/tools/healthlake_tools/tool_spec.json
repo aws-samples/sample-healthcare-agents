@@ -1,0 +1,129 @@
+[
+  {
+    "name": "get_patient_conditions",
+    "description": "Get a patient's medical conditions, diagnoses, and chronic diseases from their EHR. Returns conditions with clinical status, onset dates, and severity.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "patient_id": {
+          "type": "string",
+          "description": "The patient's FHIR ID"
+        }
+      },
+      "required": ["patient_id"]
+    }
+  },
+  {
+    "name": "get_patient_medications",
+    "description": "Get a patient's current active medications from their EHR. Returns medication names, dosage instructions, and prescription dates.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "patient_id": {
+          "type": "string",
+          "description": "The patient's FHIR ID"
+        }
+      },
+      "required": ["patient_id"]
+    }
+  },
+  {
+    "name": "get_patient_observations",
+    "description": "Get a patient's clinical observations including lab results and vital signs. Optionally filter by category (e.g., 'vital-signs', 'laboratory', 'imaging').",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "patient_id": {
+          "type": "string",
+          "description": "The patient's FHIR ID"
+        },
+        "category": {
+          "type": "string",
+          "description": "Optional: Filter by observation category (e.g., 'vital-signs', 'laboratory', 'imaging')"
+        }
+      },
+      "required": ["patient_id"]
+    }
+  },
+  {
+    "name": "get_patient_allergies",
+    "description": "Get a patient's documented allergies and intolerances. Returns allergen substances, criticality levels, and reaction types.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "patient_id": {
+          "type": "string",
+          "description": "The patient's FHIR ID"
+        }
+      },
+      "required": ["patient_id"]
+    }
+  },
+  {
+    "name": "get_patient_appointments",
+    "description": "Get a patient's scheduled appointments. Returns appointment dates, times, status, and descriptions.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "patient_id": {
+          "type": "string",
+          "description": "The patient's FHIR ID"
+        }
+      },
+      "required": ["patient_id"]
+    }
+  },
+  {
+    "name": "advanced_patient_search",
+    "description": "Search for patients using advanced FHIR search parameters including demographics, age categories (pediatric, adolescent, adult, geriatric), location filters, and resource includes. Supports FHIR modifiers and chaining.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "search_params": {
+          "type": "object",
+          "description": "FHIR search parameters as key-value pairs. Examples: {'name': 'Smith', 'gender': 'female', 'age_category': 'geriatric', 'city': 'Seattle', 'state': 'WA'}. Age categories: pediatric (0-12), adolescent (13-17), adult (18-64), geriatric (65+).",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "include_params": {
+          "type": "array",
+          "description": "Optional: FHIR _include parameters to include related resources (e.g., ['Patient:general-practitioner'])",
+          "items": {
+            "type": "string"
+          }
+        },
+        "revinclude_params": {
+          "type": "array",
+          "description": "Optional: FHIR _revinclude parameters to include reverse references (e.g., ['Observation:patient'])",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["search_params"]
+    }
+  },
+  {
+    "name": "get_patient_everything",
+    "description": "Get a comprehensive patient record using the FHIR $patient-everything operation. Returns all resources related to a patient including conditions, medications, observations, procedures, encounters, and more. Optionally filter by date range.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "patient_id": {
+          "type": "string",
+          "description": "The patient's FHIR ID"
+        },
+        "start_date": {
+          "type": "string",
+          "description": "Optional: Start date for filtering resources (ISO 8601 format: YYYY-MM-DD)"
+        },
+        "end_date": {
+          "type": "string",
+          "description": "Optional: End date for filtering resources (ISO 8601 format: YYYY-MM-DD)"
+        }
+      },
+      "required": ["patient_id"]
+    }
+  }
+]

@@ -1,0 +1,4 @@
+boto3>=1.34.0
+botocore>=1.34.0
+PyJWT[crypto]>=2.10.1  # T9: bearer token validation against EHR JWKS
+cryptography>=44.0.1
