@@ -346,12 +346,14 @@ async def agent_stream(payload: Dict[str, Any]):
         enhanced_query = user_query
 
     try:
-        print(f"[CLINICAL-STREAM] Starting clinical decision support for user: {user_id}, session: {session_id}")
-        print(f"[CLINICAL-STREAM] Query: {enhanced_query}")
+        # Do not log PHI (patient queries, patient identifiers, medications) in
+        # clear text. Log only non-sensitive metadata such as session presence.
+        print(f"[CLINICAL-STREAM] Starting clinical decision support for session: {session_id}")
+        print(f"[CLINICAL-STREAM] Query received (length={len(enhanced_query)} chars)")
         if patient_id:
-            print(f"[CLINICAL-STREAM] Patient ID: {patient_id}")
+            print("[CLINICAL-STREAM] Patient context provided")
         if medication:
-            print(f"[CLINICAL-STREAM] Medication: {medication}")
+            print("[CLINICAL-STREAM] Medication context provided")
 
         # Get callback URL from environment (Amplify URL)
         stack_name = os.environ.get('STACK_NAME', 'healthcare-agents-stack')

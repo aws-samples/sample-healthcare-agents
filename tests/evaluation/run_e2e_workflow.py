@@ -151,7 +151,7 @@ def run_e2e_workflow(patient_id: str, run_name: str, dry_run: bool) -> None:
     )
 
     print(f"E2E Workflow: {run_name}")
-    print(f"Patient:      {patient_id}")
+    print(f"Patient:      [redacted]")
     print(f"Run ID:       {run_id}")
     print(f"Steps:        {len(WORKFLOW_STEPS)}\n")
 
@@ -181,7 +181,7 @@ def run_e2e_workflow(patient_id: str, run_name: str, dry_run: bool) -> None:
         print(f"  Agent: {agent_name}")
 
         if dry_run:
-            print(f"  DRY RUN: {prompt[:100]}...")
+            print(f"  DRY RUN: (prompt redacted, length={len(prompt)} chars)")
             results[agent_name] = {"status": "dry_run"}
             continue
 

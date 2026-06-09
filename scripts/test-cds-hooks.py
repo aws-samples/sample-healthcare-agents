@@ -30,7 +30,7 @@ def test_service_discovery():
     from gateway.tools.cds_hooks.cds_hooks_lambda import get_cds_services
 
     result = get_cds_services()
-    print(json.dumps(result, indent=2))
+    print(f"   Response received: {len(result.get('cards', [])) if isinstance(result, dict) else 0} card(s)")  # full response not logged (may contain PHI)
     print()
 
     assert "services" in result
@@ -57,7 +57,7 @@ def test_patient_view():
     }
 
     result = handle_patient_view(event)
-    print(json.dumps(result, indent=2))
+    print(f"   Response received: {len(result.get('cards', [])) if isinstance(result, dict) else 0} card(s)")  # full response not logged (may contain PHI)
     print()
 
     assert "cards" in result
@@ -106,7 +106,7 @@ def test_order_select_mri():
     }
 
     result = handle_order_select(event)
-    print(json.dumps(result, indent=2))
+    print(f"   Response received: {len(result.get('cards', [])) if isinstance(result, dict) else 0} card(s)")  # full response not logged (may contain PHI)
     print()
 
     assert "cards" in result
@@ -159,7 +159,7 @@ def test_order_select_office_visit():
     }
 
     result = handle_order_select(event)
-    print(json.dumps(result, indent=2))
+    print(f"   Response received: {len(result.get('cards', [])) if isinstance(result, dict) else 0} card(s)")  # full response not logged (may contain PHI)
     print()
 
     assert "cards" in result
@@ -205,12 +205,12 @@ def test_order_select_medication():
     }
 
     result = handle_order_select(event)
-    print(json.dumps(result, indent=2))
+    print(f"   Response received: {len(result.get('cards', [])) if isinstance(result, dict) else 0} card(s)")  # full response not logged (may contain PHI)
     print()
 
     assert "cards" in result
     assert len(result["cards"]) > 0
-    print(f"✅ order-select (Biologics): PASSED - indicator={result['cards'][0]['indicator']}\n")
+    print("✅ order-select (Biologics): PASSED\n")
 
 
 def test_payor_policy_lookup():
@@ -223,7 +223,7 @@ def test_payor_policy_lookup():
 
     # Test MRI lumbar spine
     result = json.loads(lookup_prior_auth_requirements("72148", "Blue Cross Blue Shield"))
-    print(json.dumps(result, indent=2))
+    print(f"   Response received: {len(result.get('cards', [])) if isinstance(result, dict) else 0} card(s)")  # full response not logged (may contain PHI)
     print()
 
     assert result["procedure_code"] == "72148"
@@ -232,7 +232,7 @@ def test_payor_policy_lookup():
 
     # Test office visit
     result = json.loads(lookup_prior_auth_requirements("99213"))
-    print(json.dumps(result, indent=2))
+    print(f"   Response received: {len(result.get('cards', [])) if isinstance(result, dict) else 0} card(s)")  # full response not logged (may contain PHI)
     print()
 
     assert result["procedure_code"] == "99213"
