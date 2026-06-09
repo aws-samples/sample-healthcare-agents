@@ -142,11 +142,9 @@ The `appeals-agent` generates appeal letters for denied claims:
 | `search_appeal_regulations` | Find payer-specific appeal timelines, filing requirements, and escalation paths |
 | `search_clinical_guidelines` | Find medical necessity criteria, clinical practice guidelines, and evidence requirements by procedure |
 
-## Live Demo
+## Demo Walkthrough
 
-A hosted demo of these agents is available at: **[https://main.d3pq1ngpz75zeb.amplifyapp.com/](https://main.d3pq1ngpz75zeb.amplifyapp.com/)**
-
-The demo walks through the end-to-end RCM workflow:
+Deploy the solution into your own AWS account using the [Quick Start](#quick-start) below. Once deployed, the Amplify-hosted frontend gives you your own URL to walk through the end-to-end RCM workflow:
 
 1. **Patient Selection** — Choose a patient from the EHR-style landing page. The system loads their clinical record from HealthLake (FHIR R4).
 2. **Eligibility Verification** — The Eligibility Verification Agent checks active insurance coverage, plan details, benefits, and cost sharing for the patient.
