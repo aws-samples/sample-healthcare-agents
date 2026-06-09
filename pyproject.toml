@@ -43,16 +43,16 @@ dev = [
 agent-strands = [
     "strands-agents==1.16.0",
     "bedrock-agentcore[strands-agents]==1.0.6",
-    "mcp==1.21.0",
+    "mcp==1.23.1",
 ]
 
 # LangGraph agent dependencies (for local development)
 agent-langgraph = [
-    "langgraph==1.0.3",
+    "langgraph==1.0.10",
     "langchain-aws==1.0.0",
     "langchain-mcp-adapters==0.1.13",
     "langgraph-checkpoint-aws==1.0.1",
-    "mcp==1.21.0",
+    "mcp==1.23.1",
 ]
 
 # All dependencies for local development
@@ -91,3 +91,9 @@ testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+
+[tool.uv]
+# Security overrides: pin transitive deps to non-vulnerable versions
+override-dependencies = [
+    "langgraph-checkpoint>=4.0.0",
+]

@@ -40,28 +40,39 @@ import argparse
 from datetime import datetime
 
 def get_gateway_config():
-    """Get Gateway configuration from SSM."""
+    """Get non-sensitive Gateway configuration from SSM.
+
+    The machine client secret is intentionally NOT included here; it is fetched
+    on demand inside ``get_oauth_token`` so it never lives in a dict that gets
+    logged or passed around.
+    """
     ssm = boto3.client('ssm', region_name='us-east-1')
-    secrets = boto3.client('secretsmanager', region_name='us-east-1')
 
     try:
         gateway_url = ssm.get_parameter(Name='/healthcare-agents-stack/gateway_url')['Parameter']['Value']
         machine_client_id = ssm.get_parameter(Name='/healthcare-agents-stack/machine_client_id')['Parameter']['Value']
         cognito_domain = ssm.get_parameter(Name='/healthcare-agents-stack/cognito_provider')['Parameter']['Value']
-        machine_client_secret = secrets.get_secret_value(SecretId='/healthcare-agents-stack/machine_client_secret')['SecretString']
 
         return {
             'gateway_url': gateway_url,
             'machine_client_id': machine_client_id,
             'cognito_domain': cognito_domain,
-            'machine_client_secret': machine_client_secret,
         }
     except Exception as e:
         print(f"❌ Error getting Gateway config: {e}")
         return None
 
 def get_oauth_token(config):
-    """Get OAuth token from Cognito."""
+    """Get OAuth token from Cognito.
+
+    Fetches the machine client secret from Secrets Manager locally so the secret
+    is never stored in a shared config dict.
+    """
+    secrets = boto3.client('secretsmanager', region_name='us-east-1')
+    machine_client_secret = secrets.get_secret_value(
+        SecretId='/healthcare-agents-stack/machine_client_secret'
+    )['SecretString']
+
     token_url = f"https://{config['cognito_domain']}/oauth2/token"
 
     response = requests.post(
@@ -70,7 +81,7 @@ def get_oauth_token(config):
         data={
             'grant_type': 'client_credentials',
             'client_id': config['machine_client_id'],
-            'client_secret': config['machine_client_secret'],
+            'client_secret': machine_client_secret,
             'scope': 'healthcare-agents-stack-gateway/read healthcare-agents-stack-gateway/write',
         },
         timeout=10,
@@ -190,9 +201,6 @@ def test_safety_agent(incident_text=None):
 
             print("✅ Gateway invoked successfully!")
             print()
-            print("📥 Full Response (for debugging):")
-            print(json.dumps(result, indent=2))
-            print()
             print("📥 Parsed Response:")
             print("-" * 80)
 
@@ -211,21 +219,21 @@ def test_safety_agent(incident_text=None):
                             result_data = body['result']
 
                             if 'event_id' in result_data:
-                                print(f"✓ Event ID: {result_data['event_id']}")
+                                print("✓ Event ID received")
 
                             if 'classification' in result_data:
                                 classification = result_data['classification']
                                 print(f"✓ Event Type: {classification.get('event_type')}")
                                 print(f"✓ Severity: {classification.get('severity')}")
-                                print(f"✓ Patient: {classification.get('patient_id', 'N/A')}")
-                                print(f"✓ Location: {classification.get('location', 'N/A')}")
+                                # Patient identifier and location are PHI — do not log.
+                                print("✓ Patient: [redacted]")
+                                print("✓ Location: [redacted]")
 
                             if 'analysis' in result_data:
-                                analysis = result_data['analysis']
-                                print(f"✓ Analysis: {analysis[:200]}...")
+                                # Analysis text may contain PHI — log only its presence.
+                                print("✓ Analysis received")
                 except Exception as e:
                     print(f"⚠️  Error parsing response: {e}")
-                    print(f"Response (raw): {content[:1000]}...")
 
             print("-" * 80)
             print()

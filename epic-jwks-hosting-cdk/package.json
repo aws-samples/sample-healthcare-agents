@@ -10,7 +10,12 @@
     "deploy": "npm run build && cdk deploy",
     "synth": "cdk synth"
   },
-  "keywords": ["epic", "fhir", "jwks", "cdk"],
+  "keywords": [
+    "epic",
+    "fhir",
+    "jwks",
+    "cdk"
+  ],
   "author": "",
   "license": "Apache-2.0",
   "devDependencies": {
@@ -19,7 +24,7 @@
     "typescript": "^5.3.0"
   },
   "dependencies": {
-    "aws-cdk-lib": "^2.253.0",
+    "aws-cdk-lib": "^2.258.1",
     "constructs": "^10.3.0",
     "source-map-support": "^0.5.21"
   },

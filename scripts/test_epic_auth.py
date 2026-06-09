@@ -79,7 +79,7 @@ def test_patient_read(access_token, fhir_base_url, patient_id):
         'Accept': 'application/fhir+json'
     }
 
-    print(f"\n👤 Testing Patient read: {url}")
+    print(f"\n👤 Testing Patient read (patient ID redacted)")
     response = requests.get(url, headers=headers, timeout=30)
 
     print(f"📡 Response status: {response.status_code}")
@@ -88,15 +88,12 @@ def test_patient_read(access_token, fhir_base_url, patient_id):
         patient = response.json()
         print(f"✅ Patient data retrieved!")
         if 'name' in patient and len(patient['name']) > 0:
-            name = patient['name'][0]
-            given = ' '.join(name.get('given', []))
-            family = name.get('family', '')
-            print(f"   Name: {given} {family}")
-        print(f"   ID: {patient.get('id')}")
+            print(f"   Name: [redacted]")
+        print(f"   ID: [redacted]")
         return True
     else:
         print(f"❌ Patient read failed!")
-        print(f"   Response: {response.text}")
+        print(f"   Response status: {response.status_code}")
         return False
 
 if __name__ == "__main__":
@@ -129,10 +126,10 @@ if __name__ == "__main__":
     print("=" * 60)
     print("Epic FHIR Backend OAuth 2.0 Authentication Test")
     print("=" * 60)
-    print(f"Client ID: {CLIENT_ID}")
+    print(f"Client ID: [redacted]")
     print(f"Token URL: {TOKEN_URL}")
     print(f"FHIR Base: {FHIR_BASE_URL}")
-    print(f"Test Patient: {TEST_PATIENT_ID}")
+    print(f"Test Patient: [redacted]")
     print("=" * 60)
 
     # Step 1: Get access token
