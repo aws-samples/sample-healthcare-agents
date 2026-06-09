@@ -1,0 +1,12 @@
+*.js
+*.d.ts
+node_modules
+venv
+__pycache__
+
+# CDK asset staging directory
+.cdk.staging
+cdk.out
+
+# Python
+*.pyc
