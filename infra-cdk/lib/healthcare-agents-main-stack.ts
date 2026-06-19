@@ -66,6 +66,7 @@ export class HealthcareAgentsMainStack extends cdk.Stack {
     this.createHealthLakeTools(props.config, this.sharedGateway, this.sharedGatewayRole)
     this.createComprehendMedicalTools(props.config, this.sharedGateway, this.sharedGatewayRole)
     this.createEpicFHIRTools(props.config, this.sharedGateway, this.sharedGatewayRole)
+    this.createAppealsKBTools(props.config, this.sharedGateway, this.sharedGatewayRole)
 
     // Create shared platform-level feedback infrastructure (one table + API for all patterns)
     const userPool = cognito.UserPool.fromUserPoolId(
@@ -289,14 +290,14 @@ export class HealthcareAgentsMainStack extends cdk.Stack {
     const cognitoIssuer = `https://cognito-idp.${this.region}.amazonaws.com/${this.cognitoStack.userPoolId}`
     const cognitoDiscoveryUrl = `${cognitoIssuer}/.well-known/openid-configuration`
 
-    // Create Gateway (V2 - recreated with MCP 2025-11-25 support for authorization code grant)
-    const gateway = new bedrockagentcore.CfnGateway(this, "SharedAgentCoreGatewayV2", {
+    // Create Gateway (updated with MCP 2025-11-25 support for authorization code grant)
+    const gateway = new bedrockagentcore.CfnGateway(this, "SharedAgentCoreGateway", {
       name: `${config.stack_name_base}-shared-gateway`,
       roleArn: gatewayRole.roleArn,
       protocolType: "MCP",
       protocolConfiguration: {
         mcp: {
-          supportedVersions: ["2025-03-26", "2025-11-25"], // Added 2025-11-25 for Authorization Code grant OAuth support
+          supportedVersions: ["2025-03-26"],
         },
       },
       authorizerType: "CUSTOM_JWT",
@@ -559,6 +560,59 @@ export class HealthcareAgentsMainStack extends cdk.Stack {
     comprehendTarget.node.addDependency(comprehendLambda)
   }
 
+  private createAppealsKBTools(
+    config: AppConfig,
+    gateway: bedrockagentcore.CfnGateway,
+    gatewayRole: iam.Role
+  ): void {
+    const appealsLambda = new lambda.Function(this, "AppealsKBLambda", {
+      functionName: `${config.stack_name_base}-appeals-kb-tools`,
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: "appeals_kb_lambda.handler",
+      code: lambda.Code.fromAsset(path.join(__dirname, "../../gateway/tools/appeals_kb")),
+      timeout: cdk.Duration.seconds(30),
+      environment: {
+        STACK_NAME: config.stack_name_base,
+      },
+    })
+
+    // Grant bedrock:Retrieve on the appeals KB
+    appealsLambda.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["bedrock:Retrieve"],
+      resources: [`arn:aws:bedrock:${this.region}:${this.account}:knowledge-base/*`],
+    }))
+
+    // Grant SSM read so Lambda can look up the KB ID at runtime
+    appealsLambda.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["ssm:GetParameter"],
+      resources: [`arn:aws:ssm:${this.region}:${this.account}:parameter/${config.stack_name_base}/appeals-kb-id`],
+    }))
+
+    const toolSpec = JSON.parse(
+      require("fs").readFileSync(
+        path.join(__dirname, "../../gateway/tools/appeals_kb/tool_spec.json"), "utf8"
+      )
+    )
+
+    appealsLambda.grantInvoke(gatewayRole)
+
+    const appealsTarget = new bedrockagentcore.CfnGatewayTarget(this, "AppealsKBTarget", {
+      gatewayIdentifier: gateway.attrGatewayIdentifier,
+      name: "appeals-kb-target",
+      description: "Appeals KB tools: denial codes, appeal regulations, clinical guidelines",
+      targetConfiguration: {
+        mcp: {
+          lambda: {
+            lambdaArn: appealsLambda.functionArn,
+            toolSchema: { inlinePayload: toolSpec.tools as any },
+          },
+        },
+      },
+      credentialProviderConfigurations: [{ credentialProviderType: "GATEWAY_IAM_ROLE" }],
+    })
+    appealsTarget.node.addDependency(appealsLambda)
+  }
+
   /**
    * Create Epic FHIR tools (3LO User Federation with OAuth2)
    * Uses OpenAPI Gateway Target (not Lambda) to support OAuth credential provider
@@ -774,17 +828,6 @@ export class HealthcareAgentsMainStack extends cdk.Stack {
         },
       ],
     })
-
-    // Add Authorization Code Grant properties using CDK escape hatch
-    // CDK TypeScript types may not include these properties yet
-    epicTarget.addPropertyOverride(
-      "CredentialProviderConfigurations.0.CredentialProvider.OauthCredentialProvider.GrantType",
-      "AUTHORIZATION_CODE"
-    )
-    epicTarget.addPropertyOverride(
-      "CredentialProviderConfigurations.0.CredentialProvider.OauthCredentialProvider.DefaultReturnUrl",
-      `https://${this.amplifyHostingStack.amplifyApp.defaultDomain}/oauth/callback`
-    )
 
     // Output Epic tools information
     new cdk.CfnOutput(this, "EpicFHIRTargetIdV2", {

@@ -1,0 +1,66 @@
+{
+  "tools": [
+    {
+      "name": "search_denial_codes",
+      "description": "Search CARC/RARC denial reason codes with appeal strategies and required evidence. Use when analyzing a claim denial to find the denial code meaning and recommended appeal approach.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query (e.g., 'CO-4 procedure not covered', 'medical necessity denial', 'CARC 50')"
+          },
+          "max_results": {
+            "type": "integer",
+            "description": "Maximum results to return (default: 5)"
+          }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "search_appeal_regulations",
+      "description": "Find payer-specific appeal timelines, filing requirements, and escalation paths. Use when determining appeal deadlines and submission requirements for a specific payer.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query (e.g., 'Medicare appeal filing deadline', 'UnitedHealthcare peer-to-peer review', 'ERISA external review')"
+          },
+          "payer_name": {
+            "type": "string",
+            "description": "Optional: Filter by payer name (e.g., 'Medicare', 'Aetna', 'Blue Cross Blue Shield')"
+          },
+          "max_results": {
+            "type": "integer",
+            "description": "Maximum results to return (default: 5)"
+          }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "search_clinical_guidelines",
+      "description": "Find medical necessity criteria, clinical practice guidelines, and evidence requirements by procedure. Use when building clinical justification for an appeal.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query (e.g., 'MRI lumbar spine medical necessity', 'joint replacement criteria', 'InterQual imaging')"
+          },
+          "procedure_type": {
+            "type": "string",
+            "description": "Optional: Type of procedure (e.g., 'imaging', 'surgery', 'medication', 'rehabilitation')"
+          },
+          "max_results": {
+            "type": "integer",
+            "description": "Maximum results to return (default: 5)"
+          }
+        },
+        "required": ["query"]
+      }
+    }
+  ]
+}

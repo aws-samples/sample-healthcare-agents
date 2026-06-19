@@ -10,12 +10,6 @@ backend:
   # Each pattern gets its own AgentCore Runtime, Memory, and Gateway tools
   # All patterns share the same Cognito authentication and Amplify frontend
   patterns:
-    - pattern: hospital-safety-agent
-      deployment_type: docker
-      enabled: true
-    - pattern: clinical-decision-support
-      deployment_type: docker
-      enabled: true
     - pattern: medical-coding-agent
       deployment_type: docker
       enabled: true
@@ -25,20 +19,13 @@ backend:
     - pattern: claims-submission-agent
       deployment_type: docker
       enabled: true
-    - pattern: clinical-decision-agent-langgraph
+    - pattern: appeals-agent
       deployment_type: docker
       enabled: true
-    - pattern: langgraph-single-agent
-      deployment_type: docker
-      enabled: true
-    # Uncomment to add more patterns:
-    # - pattern: strands-single-agent
-    #   deployment_type: zip
-    #   enabled: true
 
   # LEGACY SINGLE PATTERN DEPLOYMENT (deprecated, for backward compatibility)
   # Use 'patterns' array above instead for new deployments
-  # pattern: claims-assembly-agent # Available patterns: strands-single-agent, langgraph-single-agent, hospital-safety-agent, medical-coding-agent, claims-assembly-agent, claims-submission-agent
+  # pattern: medical-coding-agent # Available patterns: medical-coding-agent, claims-assembly-agent, claims-submission-agent, appeals-agent, prior-authorization-agent, eligibility-verification-agent
   # deployment_type: zip # Available deployment types: docker (default), zip
 
   # HealthLake Tools Configuration (always deployed for all patterns)

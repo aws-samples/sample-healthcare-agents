@@ -109,7 +109,7 @@ def get_gateway_access_token() -> str:
 
     data = {
         "grant_type": "client_credentials",
-        "scope": f"{stack_name}-gateway/read {stack_name}-gateway/write",
+        "scope": f"{stack_name}-api/invoke",
     }
 
     print(f"[AUTH] Requesting token from: {token_url}")
