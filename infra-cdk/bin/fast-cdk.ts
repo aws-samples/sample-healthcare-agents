@@ -2,7 +2,6 @@
 import * as cdk from "aws-cdk-lib"
 import { HealthcareAgentsMainStack } from "../lib/healthcare-agents-main-stack"
 import { BackendStack } from "../lib/backend-stack"
-import { SafetyAnalysisStack } from "../lib/safety-analysis-stack"
 import { ConfigManager, AppConfig } from "../lib/utils/config-manager"
 
 // Load configuration using ConfigManager
@@ -65,26 +64,6 @@ for (const patternConfig of enabledPatterns) {
   backendStack.addDependency(mainStack)
 
   backendStacks.push(backendStack)
-
-  // Note: Pattern-specific outputs (RuntimeArn, MemoryArn, etc.) are already
-  // defined in the BackendStack itself, so we don't need to add them here
-}
-
-// Deploy the independent safety analysis stack
-// This stack looks up DynamoDB tables via SSM parameters
-// and can be deployed separately from the main stack
-const safetyAnalysisStack = new SafetyAnalysisStack(app, `${props.stack_name_base}-safety-analysis`, {
-  stackNameBase: props.stack_name_base,
-  env: env,
-})
-
-// Add dependency: safety analysis only depends on hospital-safety-agent
-// which creates the DynamoDB tables that safety-analysis replicates
-const hospitalSafetyStack = backendStacks.find(stack =>
-  stack.node.id.includes('hospital-safety-agent')
-)
-if (hospitalSafetyStack) {
-  safetyAnalysisStack.addDependency(hospitalSafetyStack)
 }
 
 app.synth()

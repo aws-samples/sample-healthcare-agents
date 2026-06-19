@@ -83,22 +83,18 @@ class TestClaimSubmission:
         s3_client.delete_object(Bucket=b2bi_buckets['input'], Key=key)
     
     def test_list_transformer_jobs(self, b2bi_client, stack_name):
-        """Test listing B2B transformer jobs."""
+        """Test that transformer job retrieval works (B2BI has no list_transformer_jobs API)."""
         ssm = boto3.client('ssm')
         try:
             transformer_id = ssm.get_parameter(Name=f'/{stack_name}/b2bi/transformer-id')['Parameter']['Value']
         except:
             pytest.skip("Transformer ID not found")
-        
-        response = b2bi_client.list_transformer_jobs(
-            transformerId=transformer_id,
-            maxResults=10
-        )
-        
-        assert 'transformerJobs' in response
-        # May be empty if no jobs have run yet
-        jobs = response.get('transformerJobs', [])
-        assert isinstance(jobs, list)
+
+        # B2BI SDK only supports get_transformer_job (no list endpoint)
+        # Verify the transformer itself is accessible
+        response = b2bi_client.get_transformer(transformerId=transformer_id)
+        assert 'transformerId' in response
+        assert response['transformerId'] == transformer_id
 
 
 class TestDuplicateDetection:

@@ -60,8 +60,8 @@ export class CognitoStack extends cdk.NestedStack {
         otp: true,             // TOTP authenticator app
       },
       // Threat T1 — adaptive auth blocks suspicious sign-ins
-      // (impossible travel, new device, breached-credentials check).
-      advancedSecurityMode: cognito.AdvancedSecurityMode.ENFORCED,
+      // Note: advancedSecurityMode removed as it requires PLUS pricing tier.
+      // Use standardThreatProtectionMode for ESSENTIALS tier if needed.
       accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       userInvitation: {

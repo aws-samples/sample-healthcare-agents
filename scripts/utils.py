@@ -207,3 +207,81 @@ def print_section(title: str, width: int = 60) -> None:
     print("\n" + "=" * width)
     print(title)
     print("=" * width + "\n")
+
+
+def get_ssm_parameter(param_name: str) -> str:
+    """
+    Fetch a single SSM parameter by full path.
+
+    Args:
+        param_name: Full SSM parameter path (e.g. /stack-name/gateway_url)
+
+    Returns:
+        Parameter value string
+    """
+    ssm = boto3.client("ssm")
+    try:
+        response = ssm.get_parameter(Name=param_name, WithDecryption=True)
+        return response["Parameter"]["Value"]
+    except Exception as e:
+        print_msg(f"Failed to fetch SSM parameter '{param_name}': {e}", "error")
+        sys.exit(1)
+
+
+def get_machine_client_token(stack_name: str) -> str:
+    """
+    Obtain a machine-to-machine OAuth2 token from Cognito for gateway access.
+
+    Reads machine_client_id from SSM and retrieves the client secret directly
+    from Cognito (it is not stored in SSM).
+
+    Args:
+        stack_name: Base CDK stack name used to look up parameters in SSM
+
+    Returns:
+        Bearer access token string
+    """
+    import requests as _requests
+
+    ssm = boto3.client("ssm")
+    cognito_idp = boto3.client("cognito-idp")
+
+    try:
+        client_id = ssm.get_parameter(Name=f"/{stack_name}/machine_client_id")[
+            "Parameter"
+        ]["Value"]
+        user_pool_id = ssm.get_parameter(Name=f"/{stack_name}/cognito-user-pool-id")[
+            "Parameter"
+        ]["Value"]
+        domain = ssm.get_parameter(Name=f"/{stack_name}/cognito_provider")[
+            "Parameter"
+        ]["Value"]
+    except Exception as e:
+        print_msg(f"Failed to fetch Cognito SSM parameters: {e}", "error")
+        sys.exit(1)
+
+    try:
+        client_secret = cognito_idp.describe_user_pool_client(
+            UserPoolId=user_pool_id, ClientId=client_id
+        )["UserPoolClient"]["ClientSecret"]
+    except Exception as e:
+        print_msg(f"Failed to fetch Cognito client secret: {e}", "error")
+        sys.exit(1)
+
+    token_url = f"https://{domain}/oauth2/token"
+    response = _requests.post(
+        token_url,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        data={
+            "grant_type": "client_credentials",
+            "client_id": client_id,
+            "client_secret": client_secret,
+        },
+        timeout=10,
+    )
+
+    if response.status_code != 200:
+        print_msg(f"Failed to obtain OAuth token: {response.text}", "error")
+        sys.exit(1)
+
+    return response.json()["access_token"]

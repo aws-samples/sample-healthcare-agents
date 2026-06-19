@@ -1,90 +1,75 @@
-# Common Payer Requirements for EDI 837P Claims
+Payer: Medicare
+Rule: NPI Required
+Description: NPI required for all providers. Taxonomy code must match specialty. Medicare Beneficiary Identifier (MBI) required, not SSN.
 
-## Medicare Requirements
-- National Provider Identifier (NPI) required for all providers
-- Taxonomy code must match provider specialty
-- Place of service code required
-- Diagnosis codes must be ICD-10-CM format
-- Procedure codes must be CPT or HCPCS
-- Referring provider NPI required for certain services
-- Prior authorization number required when applicable
-- Medicare Beneficiary Identifier (MBI) required (not SSN)
-- Date of service must be within timely filing limits (1 year)
-- Modifier usage must follow Medicare guidelines
+---
 
-## Medicaid Requirements
-- State-specific Medicaid ID required
-- NPI required for billing and rendering providers
-- Taxonomy code required
-- Prior authorization required for many services
-- Diagnosis codes required (minimum 1, maximum varies by state)
-- Place of service code required
-- Timely filing varies by state (typically 90-365 days)
-- Coordination of benefits information if other insurance exists
-- Patient relationship to subscriber required
-- Service facility location information required
+Payer: Medicare
+Rule: Timely Filing
+Description: Claims must be filed within 1 year of date of service.
 
-## Blue Cross Blue Shield Requirements
-- NPI required for all providers
-- Tax ID (EIN) required for billing entity
-- Group number and member ID required
-- Prior authorization number when applicable
-- Diagnosis codes required (ICD-10-CM)
-- Procedure codes required (CPT/HCPCS)
-- Modifier usage per BCBS guidelines
-- Place of service code required
-- Timely filing limit: typically 180 days
-- Coordination of benefits required if applicable
-- Referring provider information when required
-- Service facility NPI required
+---
 
-## UnitedHealthcare Requirements
-- NPI required for billing and rendering providers
-- Tax ID required
-- Member ID and group number required
-- Prior authorization reference number when applicable
-- Diagnosis codes required (ICD-10-CM, up to 12)
-- Procedure codes required (CPT/HCPCS)
-- Modifiers required when applicable
-- Place of service code required
-- Timely filing: 180 days from date of service
-- Coordination of benefits information required
-- Referring provider NPI when applicable
-- Service location information required
+Payer: Medicare
+Rule: Prior Authorization
+Description: Prior authorization required when applicable. Authorization number in REF segment of Loop 2300.
 
-## Aetna Requirements
-- NPI required for all providers
-- Tax ID required for billing entity
-- Member ID required
-- Prior authorization number when required
-- Diagnosis codes required (ICD-10-CM)
-- Procedure codes required (CPT/HCPCS)
-- Modifier usage per Aetna guidelines
-- Place of service code required
-- Timely filing: 180 days
-- Coordination of benefits when applicable
-- Rendering provider information required
-- Service facility NPI required
+---
 
-## Cigna Requirements
-- NPI required for billing and rendering providers
-- Tax ID required
-- Member ID and group number required
-- Prior authorization when applicable
-- Diagnosis codes required (ICD-10-CM)
-- Procedure codes required (CPT/HCPCS)
-- Modifiers when applicable
-- Place of service code required
-- Timely filing: 180 days from date of service
-- Coordination of benefits information
-- Referring provider NPI when required
-- Service location details required
+Payer: Medicaid
+Rule: State-Specific Requirements
+Description: State-specific Medicaid ID required. Timely filing varies by state (typically 90-365 days). Prior auth required for many services.
 
-## Common Required Fields Across All Payers
-- Patient demographics (name, DOB, gender, address)
-- Subscriber information (name, ID, relationship to patient)
-- Provider information (NPI, name, address, taxonomy)
-- Service information (dates, place of service, procedures, diagnoses)
-- Billing information (charges, units, modifiers)
-- Claim control number (unique identifier)
-- Submission date
+---
+
+Payer: Medicaid
+Rule: Coordination of Benefits
+Description: Coordination of benefits information required if other insurance exists. Patient relationship to subscriber required.
+
+---
+
+Payer: Blue Cross Blue Shield
+Rule: Required Fields
+Description: NPI, Tax ID (EIN), group number, member ID required. Timely filing: 180 days. Prior auth number when applicable.
+
+---
+
+Payer: Blue Cross Blue Shield
+Rule: Modifiers
+Description: Modifier usage per BCBS guidelines. Service facility NPI required. Referring provider information when required.
+
+---
+
+Payer: UnitedHealthcare
+Rule: Required Fields
+Description: NPI for billing and rendering, Tax ID, member ID, group number required. Timely filing: 180 days from date of service.
+
+---
+
+Payer: UnitedHealthcare
+Rule: Diagnosis Codes
+Description: ICD-10-CM required, up to 12 diagnosis codes. Prior authorization reference number required when applicable.
+
+---
+
+Payer: Aetna
+Rule: Required Fields
+Description: NPI for all providers, Tax ID for billing entity, member ID required. Timely filing: 180 days. Prior auth when required.
+
+---
+
+Payer: Aetna
+Rule: Rendering Provider
+Description: Rendering provider information required. Service facility NPI required. Modifier usage per Aetna guidelines.
+
+---
+
+Payer: Cigna
+Rule: Required Fields
+Description: NPI for billing and rendering, Tax ID, member ID, group number required. Timely filing: 180 days.
+
+---
+
+Payer: All Payers
+Rule: Common Required Fields
+Description: Patient demographics (name, DOB, gender, address), subscriber info, provider NPI/name/address, service dates, diagnoses, procedures, charges.

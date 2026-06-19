@@ -7,6 +7,7 @@ Unit tests for B2B Data Interchange integration Lambda.
 
 import json
 import pytest
+from datetime import datetime, timezone
 from unittest.mock import Mock, patch, MagicMock
 import sys
 import os
@@ -80,7 +81,7 @@ class TestRetrieveAcknowledgments:
         mock_s3.list_objects_v2.return_value = {
             'Contents': [{
                 'Key': 'acknowledgments/claim-456/997_response.txt',
-                'LastModified': '2025-02-12T10:10:00Z',
+                'LastModified': datetime(2025, 2, 12, 10, 10, 0, tzinfo=timezone.utc),
                 'Size': 1024
             }]
         }

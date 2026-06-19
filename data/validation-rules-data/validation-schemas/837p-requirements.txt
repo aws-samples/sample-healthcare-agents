@@ -1,213 +1,129 @@
-# EDI 837P Structure and Requirements
+Rule: ISA/GS/ST Segments
+Type: EDI 837P Structure
+Description: Transaction envelope: ISA (interchange), GS (functional group), ST (transaction set header 837).
 
-## Transaction Set Structure
-- ISA: Interchange Control Header
-- GS: Functional Group Header
-- ST: Transaction Set Header (837)
-- BHT: Beginning of Hierarchical Transaction
-- Loops 1000A/1000B: Submitter and Receiver Information
-- Loop 2000A: Billing Provider Hierarchical Level
-- Loop 2000B: Subscriber Hierarchical Level
-- Loop 2000C: Patient Hierarchical Level (if patient ≠ subscriber)
-- Loop 2300: Claim Information
-- Loop 2400: Service Line Information
-- SE: Transaction Set Trailer
-- GE: Functional Group Trailer
-- IEA: Interchange Control Trailer
+---
 
-## Loop 2000A: Billing Provider Level (Required)
-- HL segment: Hierarchical Level (required)
-- PRV segment: Provider Information (required)
-- Loop 2010AA: Billing Provider Name (required)
-  - NM1 segment: Provider name and NPI
-  - N3 segment: Provider address
-  - N4 segment: City, state, ZIP
-  - REF segment: Tax ID (EIN)
-  - PER segment: Contact information
-- Loop 2010AB: Pay-to Provider (if different from billing)
-- Loop 2010AC: Pay-to Plan Name (if applicable)
+Rule: BHT Segment
+Type: EDI 837P Structure
+Description: Beginning of Hierarchical Transaction. Required. Identifies transaction purpose: original, replacement, void.
 
-## Loop 2000B: Subscriber Level (Required)
-- HL segment: Hierarchical Level (required)
-- SBR segment: Subscriber Information (required)
-- Loop 2010BA: Subscriber Name (required)
-  - NM1 segment: Subscriber name and member ID
-  - N3 segment: Subscriber address
-  - N4 segment: City, state, ZIP
-  - DMG segment: Demographics (DOB, gender)
-- Loop 2010BB: Payer Name (required)
-  - NM1 segment: Payer name and ID
-  - N3 segment: Payer address
-  - N4 segment: City, state, ZIP
+---
 
-## Loop 2000C: Patient Level (Conditional)
-- Required only if patient is not the subscriber
-- HL segment: Hierarchical Level
-- PAT segment: Patient Relationship to Subscriber
-- Loop 2010CA: Patient Name
-  - NM1 segment: Patient name
-  - N3 segment: Patient address
-  - N4 segment: City, state, ZIP
-  - DMG segment: Demographics (DOB, gender)
+Rule: Loop 2000A
+Type: EDI 837P Structure
+Description: Billing Provider Hierarchical Level. Required. Contains HL, PRV, NM1, N3, N4, REF (tax ID), PER segments.
 
-## Loop 2300: Claim Information (Required)
-- CLM segment: Claim Information (required)
-  - Claim ID (unique identifier)
-  - Total claim charge amount
-  - Place of service code
-  - Provider signature indicator
-  - Assignment of benefits indicator
-  - Release of information indicator
-- DTP segments: Claim dates (required)
-  - Date of service (from)
-  - Date of service (to)
-  - Date of admission (if applicable)
-- CL1 segment: Institutional Claim Code (if applicable)
-- REF segments: Reference Information (conditional)
-  - Prior authorization number
-  - Referral number
-  - Claim control number
-- HI segment: Health Care Diagnosis Code (required)
-  - Principal diagnosis (required)
-  - Additional diagnoses (up to 11 more)
-- Loop 2310A: Referring Provider (conditional)
-- Loop 2310B: Rendering Provider (conditional)
-- Loop 2310C: Service Facility Location (conditional)
-- Loop 2310D: Supervising Provider (conditional)
+---
 
-## Loop 2400: Service Line Information (Required, Repeating)
-- LX segment: Service Line Number (required)
-- SV1 segment: Professional Service (required)
-  - Procedure code (CPT/HCPCS)
-  - Modifiers (up to 4)
-  - Line item charge amount
-  - Units of service
-  - Place of service code
-- DTP segment: Service Date (required)
-- REF segments: Line-level references (conditional)
-  - Prior authorization
-  - Referral number
-- Loop 2420A: Rendering Provider (conditional)
-- Loop 2430: Line Adjudication Information (conditional)
+Rule: Loop 2000B
+Type: EDI 837P Structure
+Description: Subscriber Hierarchical Level. Required. Contains HL, SBR, NM1 (subscriber name + member ID), N3, N4, DMG.
 
-## Field-Level Requirements
+---
 
-### NPI (National Provider Identifier)
-- Format: 10 numeric digits
-- Required for: Billing provider, rendering provider, referring provider
-- Must be active and valid in NPPES registry
-- Must match provider name and address
+Rule: Loop 2000C
+Type: EDI 837P Structure
+Description: Patient Level. Required only when patient is not the subscriber. Contains HL, PAT, NM1, N3, N4, DMG.
 
-### Tax ID (EIN)
-- Format: 9 numeric digits (XX-XXXXXXX)
-- Required for billing provider
-- Must match IRS records
-- Must be associated with billing provider NPI
+---
 
-### Member ID
-- Format: Alphanumeric, payer-specific
-- Required for subscriber
-- Must be active on date of service
-- Must match payer records
+Rule: Loop 2300 CLM Segment
+Type: EDI 837P Structure
+Description: Claim Information. Required. Fields: claim ID, total charge, place of service, signature indicator, assignment of benefits.
 
-### Diagnosis Codes (ICD-10-CM)
-- Format: 3-7 alphanumeric characters
-- Required: Minimum 1, maximum 12
-- Must be valid ICD-10-CM codes
-- Must support medical necessity
-- Principal diagnosis required in first position
+---
 
-### Procedure Codes (CPT/HCPCS)
-- CPT Format: 5 numeric digits
-- HCPCS Format: 1 letter + 4 numeric digits
-- Required for each service line
-- Must be valid and current
-- Must be appropriate for place of service
+Rule: Loop 2300 HI Segment
+Type: EDI 837P Structure
+Description: Diagnosis codes. Required. Principal diagnosis in first position. Up to 12 ICD-10-CM codes total.
 
-### Modifiers
-- Format: 2 alphanumeric characters
-- Maximum 4 per procedure code
-- Must be valid CPT/HCPCS modifiers
-- Must be appropriate for procedure and payer
+---
 
-### Place of Service
-- Format: 2 numeric digits (01-99)
-- Required for claim and each service line
-- Common codes:
-  - 11: Office
-  - 12: Home
-  - 21: Inpatient Hospital
-  - 22: Outpatient Hospital
-  - 23: Emergency Room
-  - 31: Skilled Nursing Facility
-  - 81: Independent Laboratory
+Rule: Loop 2400 SV1 Segment
+Type: EDI 837P Structure
+Description: Professional Service per line. Required. Fields: CPT/HCPCS code, up to 4 modifiers, charge, units, place of service.
 
-### Dates
-- Format: CCYYMMDD (8 digits)
-- Service date must not be in future
-- Service date must be within coverage period
-- Service date must be within timely filing limits
-- Admission date required for inpatient claims
+---
 
-### Charges and Units
-- Charge format: Decimal with 2 places (e.g., 150.00)
-- Charges must be greater than zero
-- Units must be greater than zero
-- Total claim charge = sum of line charges
-- Units must be appropriate for procedure
+Rule: NPI Format
+Type: Field Validation
+Description: National Provider Identifier must be 10 numeric digits. Required for billing, rendering, referring providers. Must be active in NPPES.
 
-### Patient Demographics
-- Name: Last, First, Middle Initial
-- Date of Birth: CCYYMMDD format
-- Gender: M (Male), F (Female), U (Unknown)
-- Address: Street, City, State, ZIP
-- Relationship to Subscriber: 01-53 (code list)
+---
 
-### Provider Information
-- Name: Last, First, Middle Initial (individual) or Organization Name
-- Address: Street, City, State, ZIP
-- Taxonomy Code: 10 alphanumeric characters
-- Contact: Phone number, email (optional)
+Rule: Tax ID (EIN) Format
+Type: Field Validation
+Description: 9 numeric digits in format XX-XXXXXXX. Required for billing provider. Must match IRS records.
 
-## Validation Checkpoints
+---
 
-### Pre-Submission Validation
-- All required loops present
-- All required segments present
-- All required fields populated
-- Field formats correct
-- Code values valid
-- Cross-field validations pass
-- Payer-specific requirements met
+Rule: Member ID Format
+Type: Field Validation
+Description: Alphanumeric, payer-specific format. No special characters. Must be active on date of service.
 
-### Data Consistency Checks
-- Provider NPI matches name and address
-- Member ID matches subscriber information
-- Diagnosis codes support procedures
-- Service dates within coverage period
-- Charges match units and fee schedule
-- Place of service appropriate for procedures
+---
 
-### Business Rule Validations
-- Prior authorization obtained when required
-- Referral obtained when required
-- Medical necessity documented
-- Timely filing requirements met
-- Coordination of benefits addressed
-- Duplicate claim check performed
+Rule: Diagnosis Code Format
+Type: Field Validation
+Description: ICD-10-CM: 3-7 alphanumeric characters. Minimum 1, maximum 12. Must be valid and support medical necessity.
 
-## Common Validation Errors
-- Missing required loop or segment
-- Invalid NPI format or value
-- Invalid diagnosis code
-- Invalid procedure code
-- Missing or invalid modifier
-- Service date in future
-- Service date outside coverage
-- Missing prior authorization
-- Duplicate claim
-- Invalid place of service
-- Charges do not match units
-- Missing rendering provider
-- Invalid tax ID
-- Missing or invalid member ID
+---
+
+Rule: Procedure Code Format
+Type: Field Validation
+Description: CPT: 5 numeric digits. HCPCS: 1 letter + 4 digits. Must be valid and current. Must match place of service.
+
+---
+
+Rule: Modifier Format
+Type: Field Validation
+Description: 2 alphanumeric characters. Maximum 4 per procedure. Must be valid CPT/HCPCS modifier for that procedure.
+
+---
+
+Rule: Place of Service
+Type: Field Validation
+Description: 2 numeric digits 01-99. Common: 11 Office, 21 Inpatient, 22 Outpatient, 23 ER, 31 SNF, 81 Lab.
+
+---
+
+Rule: Date Format
+Type: Field Validation
+Description: CCYYMMDD (8 digits). Service date must not be future. Must be within coverage period and timely filing limits.
+
+---
+
+Rule: Charge and Units
+Type: Field Validation
+Description: Charges: decimal with 2 places, must be >0. Units must be >0. Total claim charge must equal sum of line charges.
+
+---
+
+Rule: Prior Authorization
+Type: Business Rule
+Description: REF segment in Loop 2300. Required when payer mandates authorization. Must match approved authorization number.
+
+---
+
+Rule: Duplicate Claim Check
+Type: Business Rule
+Description: Claim ID must be unique per submitter. Same patient, provider, date of service, and procedure = duplicate.
+
+---
+
+Rule: Timely Filing
+Type: Business Rule
+Description: Service date must be within payer timely filing limit. Medicare: 1 year. Commercial payers: typically 180 days.
+
+---
+
+Rule: Medical Necessity
+Type: Business Rule
+Description: Diagnosis codes must support medical necessity for all procedures. Principal diagnosis must be most resource-intensive.
+
+---
+
+Rule: Pre-Submission Checklist
+Type: Validation
+Description: Verify: all required loops present, required segments populated, field formats correct, codes valid, cross-field validations pass.

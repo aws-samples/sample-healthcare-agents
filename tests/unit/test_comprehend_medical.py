@@ -68,7 +68,7 @@ def test_detect_phi(mock_context):
     """Test PHI detection."""
     mock_context.client_context.custom['bedrockAgentCoreToolName'] = \
         'comprehend_medical_target___detect_phi'
-    
+
     mock_phi_response = {
         'Entities': [
             {
@@ -79,17 +79,17 @@ def test_detect_phi(mock_context):
             }
         ]
     }
-    
-    with patch('boto3.client') as mock_boto:
-        mock_client = MagicMock()
-        mock_client.detect_phi.return_value = mock_phi_response
-        mock_boto.return_value = mock_client
-        
+
+    from gateway.tools.comprehend_medical import lambda_handler as lh_module
+    mock_client = MagicMock()
+    mock_client.detect_phi.return_value = mock_phi_response
+
+    with patch.object(lh_module, 'comprehend_medical', mock_client):
         from gateway.tools.comprehend_medical.lambda_handler import lambda_handler
-        
+
         event = {'text': 'Patient John Doe was admitted'}
         result = lambda_handler(event, mock_context)
-        
+
         assert 'content' in result
         content = json.loads(result['content'][0]['text'])
         assert len(content) > 0

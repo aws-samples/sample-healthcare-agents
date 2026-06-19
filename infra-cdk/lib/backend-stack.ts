@@ -9,7 +9,6 @@ import * as logs from "aws-cdk-lib/aws-logs"
 import * as s3 from "aws-cdk-lib/aws-s3"
 import * as kms from "aws-cdk-lib/aws-kms"
 import * as bedrock from "aws-cdk-lib/aws-bedrock"
-import * as opensearchserverless from "aws-cdk-lib/aws-opensearchserverless"
 import * as b2bi from "aws-cdk-lib/aws-b2bi"
 import * as agentcore from "@aws-cdk/aws-bedrock-agentcore-alpha"
 import * as bedrockagentcore from "aws-cdk-lib/aws-bedrockagentcore"
@@ -23,9 +22,9 @@ import { AgentCoreRole } from "./utils/agentcore-role"
 import * as path from "path"
 import * as fs from "fs"
 import * as dotenv from "dotenv"
-import { HospitalSafetyStack } from "./patterns/hospital-safety/hospital-safety-stack"
 import { MedicalCodingStack } from "./patterns/medical-coding/medical-coding-stack"
 import { ClaimsAssemblyStack } from "./patterns/claims-assembly/claims-assembly-stack"
+import { AppealsAgentStack } from "./patterns/appeals-agent/appeals-agent-stack"
 
 // Load .env file for Langfuse configuration
 dotenv.config({ path: path.join(__dirname, "../../.env") })
@@ -55,23 +54,14 @@ export class BackendStack extends cdk.Stack {
   private agentRuntime: agentcore.Runtime
   public readonly dataEncryptionKey: kms.IKey
   public feedbackTable: dynamodb.Table
-  private hospitalSafetyStack?: HospitalSafetyStack
   private medicalCodingStack?: MedicalCodingStack
   private claimsAssemblyStack?: ClaimsAssemblyStack
+  private appealsAgentStack?: AppealsAgentStack
 
   // B2B Data Interchange resources
   private b2biProfileId?: string
   private b2biTransformerId?: string
   private b2biCapabilityId?: string
-
-  // Getters for hospital safety tables
-  public get eventsTable(): dynamodb.ITable | undefined {
-    return this.hospitalSafetyStack?.eventsTable
-  }
-
-  public get analysisTable(): dynamodb.ITable | undefined {
-    return this.hospitalSafetyStack?.analysisTable
-  }
 
   constructor(scope: Construct, id: string, props: BackendStackProps) {
     const pattern = props.config.backend.pattern || 'unknown-pattern';
@@ -127,13 +117,8 @@ export class BackendStack extends cdk.Stack {
     // Create AgentCore Runtime resources
     this.createAgentCoreRuntime(props.config)
 
-    // Create MCP Server target for hospital safety agent (after Runtime is created)
-    // NOTE: This is pattern-specific and creates a Lambda wrapper for the Runtime
+    // Create MCP Server target (future pattern-specific targets can be added here)
     // Common tools (HealthLake, Comprehend Medical) are created in main stack
-    // TODO: Add hospital-safety-agent MCP target later
-    // if (props.config.backend?.pattern === "hospital-safety-agent") {
-    //   this.createHospitalSafetyMcpTarget(gateway, props.config)
-    // }
 
     // Store runtime ARN in SSM for frontend stack
     this.createRuntimeSSMParameters(props.config)
@@ -156,9 +141,7 @@ export class BackendStack extends cdk.Stack {
   }
 
   private createAgentCoreRuntime(config: AppConfig): void {
-    const pattern = config.backend?.pattern || "strands-single-agent"
-
-    // Parameters - make agent name unique per pattern
+    const pattern = config.backend?.pattern || "medical-coding-agent"
     const prefix = config.stack_name_base.replace(/-/g, "_") + "_"
     const fullAgentName = pattern.split('-').map(word =>
       word.charAt(0).toUpperCase() + word.slice(1)
@@ -185,13 +168,6 @@ export class BackendStack extends cdk.Stack {
     // Create the agent runtime artifact based on deployment type
     let agentRuntimeArtifact: agentcore.AgentRuntimeArtifact
     let zipPackagerResource: cdk.CustomResource | undefined
-
-    if (deploymentType === "zip" && (pattern === "claude-agent-sdk-single-agent" || pattern === "claude-agent-sdk-multi-agent")) {
-      throw new Error(
-        "claude-agent-sdk patterns require Docker deployment (deployment_type: docker) " +
-        "because they need Node.js and the claude-code CLI installed at build time."
-      )
-    }
 
     if (deploymentType === "zip") {
       // ZIP DEPLOYMENT: Use Lambda to package and upload to S3 (no Docker required)
@@ -307,17 +283,6 @@ export class BackendStack extends cdk.Stack {
     // Create AgentCore execution role
     const agentRole = new AgentCoreRole(this, "AgentCoreRole")
 
-    // Create Hospital Safety Infrastructure (if hospital-safety-agent pattern is used)
-    if (pattern === "hospital-safety-agent") {
-      this.hospitalSafetyStack = new HospitalSafetyStack(this, "HospitalSafety", {
-        stackNameBase: config.stack_name_base,
-        safetyOfficerEmail: "safety@example.com",
-        physicianEmail: "physician@example.com",
-        agentCoreRoleArn: agentRole.roleArn,
-        dataEncryptionKey: this.dataEncryptionKey,
-      })
-    }
-
     // Create Medical Coding Infrastructure (if medical-coding-agent pattern is used)
     if (pattern === "medical-coding-agent") {
       this.medicalCodingStack = new MedicalCodingStack(this, "MedicalCoding", {
@@ -330,6 +295,33 @@ export class BackendStack extends cdk.Stack {
     // Create Claims Assembly Infrastructure (if claims-assembly-agent pattern is used)
     if (pattern === "claims-assembly-agent") {
       this.claimsAssemblyStack = new ClaimsAssemblyStack(this, "ClaimsAssembly", {
+        stackNameBase: config.stack_name_base,
+        agentCoreRoleArn: agentRole.roleArn,
+        dataEncryptionKey: this.dataEncryptionKey,
+      })
+    }
+
+    // Create B2B Data Interchange infrastructure (if claims-submission-agent pattern is used)
+    if (pattern === "claims-submission-agent") {
+      const b2biBuckets = this.createB2BIBuckets(config)
+      const b2biTransformer = this.createB2BITransformer(config)
+      this.createB2BICapability(config, b2biBuckets, b2biTransformer)
+      this.b2biTransformerId = b2biTransformer.attrTransformerId
+      // Grant agent role access to B2B buckets
+      b2biBuckets.inputBucket.grantReadWrite(agentRole)
+      b2biBuckets.outputBucket.grantRead(agentRole)
+      b2biBuckets.acknowledgmentBucket.grantRead(agentRole)
+      agentRole.addToPolicy(new iam.PolicyStatement({
+        sid: "B2BIAccess",
+        effect: iam.Effect.ALLOW,
+        actions: ["b2bi:GetTransformer", "b2bi:StartTransformerJob", "b2bi:ListTransformerJobs"],
+        resources: ["*"],
+      }))
+    }
+
+    // Create Appeals Agent Infrastructure (if appeals-agent pattern is used)
+    if (pattern === "appeals-agent") {
+      this.appealsAgentStack = new AppealsAgentStack(this, "AppealsAgent", {
         stackNameBase: config.stack_name_base,
         agentCoreRoleArn: agentRole.roleArn,
         dataEncryptionKey: this.dataEncryptionKey,
@@ -419,7 +411,7 @@ export class BackendStack extends cdk.Stack {
     this.dataEncryptionKey.grantEncryptDecrypt(agentRole)
 
     // Create Bedrock Prompt Management prompts for supported agent patterns and grant IAM access
-    const promptManagedPatterns = ["medical-coding-agent", "claims-assembly-agent", "claims-submission-agent"]
+    const promptManagedPatterns = ["medical-coding-agent", "claims-assembly-agent", "claims-submission-agent", "appeals-agent"]
     if (promptManagedPatterns.includes(pattern)) {
       this.createManagedPrompts(config, agentRole, pattern)
     }
@@ -440,25 +432,19 @@ export class BackendStack extends cdk.Stack {
     }
 
     // Add Knowledge Base ID if medical-coding-agent pattern
-    // KB must be created manually after the nested stack creates the collection
-    if (config.backend?.pattern === "medical-coding-agent") {
-      const manualKbId = this.node.tryGetContext("knowledgeBaseId")
-      if (manualKbId) {
-        envVars.KNOWLEDGE_BASE_ID = manualKbId
-      } else {
-        console.log("[CDK] KNOWLEDGE_BASE_ID not provided. Create KB manually and pass via context: -c knowledgeBaseId=<kb-id>")
-      }
+    if (pattern === "medical-coding-agent" && this.medicalCodingStack) {
+      envVars.KNOWLEDGE_BASE_ID = this.medicalCodingStack.knowledgeBase.attrKnowledgeBaseId
     }
 
     // Add Validation KB ID if claims-assembly-agent pattern
-    // KB must be created manually after the nested stack creates the collection
-    if (config.backend?.pattern === "claims-assembly-agent") {
-      const manualValidationKbId = this.node.tryGetContext("validationKbId")
-      if (manualValidationKbId) {
-        envVars.VALIDATION_KB_ID = manualValidationKbId
-      } else {
-        console.log("[CDK] VALIDATION_KB_ID not provided. Create validation KB manually and pass via context: -c validationKbId=<kb-id>")
-      }
+    if (pattern === "claims-assembly-agent" && this.claimsAssemblyStack) {
+      envVars.VALIDATION_KB_ID = this.claimsAssemblyStack.knowledgeBase.attrKnowledgeBaseId
+    }
+
+    // Add Appeals Agent environment variables
+    if (pattern === "appeals-agent" && this.appealsAgentStack) {
+      envVars.APPEALS_BUCKET = this.appealsAgentStack.appealsBucket.bucketName
+      envVars.APPEALS_KB_ID = this.appealsAgentStack.knowledgeBase.attrKnowledgeBaseId
     }
 
     // HIPAA Compliance: Langfuse secret for observability
@@ -491,36 +477,6 @@ export class BackendStack extends cdk.Stack {
       console.log(`[CDK] Langfuse observability configured with Secrets Manager: ${otelEndpoint}`)
     } else {
       console.log("[CDK] Langfuse credentials not found in .env - secret created but empty")
-    }
-
-    // Add hospital safety environment variables if the pattern is hospital-safety-agent
-    if (this.hospitalSafetyStack) {
-      envVars.EVENTS_TABLE_NAME = this.hospitalSafetyStack.eventsTable.tableName
-      envVars.ANALYSIS_TABLE_NAME = this.hospitalSafetyStack.analysisTable.tableName
-      envVars.ALERT_SNS_TOPIC_ARN = this.hospitalSafetyStack.alertTopic.topicArn
-
-      // Add email notification recipients from environment or use defaults
-      envVars.PHYSICIAN_EMAIL = process.env.PHYSICIAN_EMAIL || "physician@example.com"
-      envVars.SAFETY_OFFICER_EMAIL = process.env.SAFETY_OFFICER_EMAIL || "safety@example.com"
-      envVars.DISABLE_ALERTS = process.env.DISABLE_ALERTS || "true"
-
-      // Use Claude Sonnet 4.6 for hospital safety agent
-      envVars.MODEL_ID = "us.anthropic.claude-sonnet-4-6"
-
-      // Grant Comprehend Medical InferRxNorm for drug name normalization
-      agentRole.addToPolicy(
-        new iam.PolicyStatement({
-          sid: "ComprehendMedicalRxNorm",
-          effect: iam.Effect.ALLOW,
-          actions: ["comprehendmedical:InferRxNorm"],
-          resources: ["*"],
-        })
-      )
-    }
-
-    // Add claude-agent-sdk specific environment variable
-    if (pattern === "claude-agent-sdk-single-agent" || pattern === "claude-agent-sdk-multi-agent") {
-      envVars["CLAUDE_CODE_USE_BEDROCK"] = "1"
     }
 
     // Create the runtime using L2 construct
@@ -1168,108 +1124,6 @@ export class BackendStack extends cdk.Stack {
     comprehendLambda.grantInvoke(gatewayRole)
   }
 
-  private createHospitalSafetyMcpTarget(
-    gateway: bedrockagentcore.CfnGateway,
-    config: AppConfig
-  ): void {
-
-    // Create Lambda wrapper for Hospital Safety Agent with dependencies
-    const safetyAgentLambda = new PythonFunction(this, "HospitalSafetyAgentLambda", {
-      functionName: `${config.stack_name_base}-hospital-safety-agent`,
-      runtime: lambda.Runtime.PYTHON_3_12,
-      entry: path.join(__dirname, "../../gateway/tools/hospital_safety_agent"),
-      handler: "handler",
-      index: "safety_agent_lambda.py",
-      timeout: cdk.Duration.minutes(5),
-      environment: {
-        STACK_NAME: config.stack_name_base,
-      },
-      logGroup: new logs.LogGroup(this, "SafetyAgentLambdaLogGroup", {
-        logGroupName: `/aws/lambda/${config.stack_name_base}-hospital-safety-agent`,
-        retention: logs.RetentionDays.ONE_WEEK,
-        removalPolicy: cdk.RemovalPolicy.DESTROY,
-      }),
-    })
-
-    // Grant Lambda permissions to read SSM parameters and secrets
-    safetyAgentLambda.addToRolePolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["ssm:GetParameter", "ssm:GetParameters"],
-        resources: [
-          `arn:aws:ssm:${this.region}:${this.account}:parameter/${config.stack_name_base}/*`,
-        ],
-      })
-    )
-
-    safetyAgentLambda.addToRolePolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["secretsmanager:GetSecretValue"],
-        resources: [
-          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:/${config.stack_name_base}/*`,
-        ],
-      })
-    )
-
-    // Grant Gateway permission to invoke the Lambda
-    const gatewayRole = iam.Role.fromRoleArn(
-      this,
-      "ImportedGatewayRole",
-      gateway.roleArn!
-    )
-    safetyAgentLambda.grantInvoke(gatewayRole)
-
-    // Load tool specification
-    const toolSpecPath = path.join(
-      __dirname,
-      "../../gateway/tools/hospital_safety_agent/tool_spec.json"
-    )
-    const safetyToolSpec = JSON.parse(require("fs").readFileSync(toolSpecPath, "utf8"))
-
-    // Create Gateway Target with Lambda wrapper
-    const safetyAgentTarget = new bedrockagentcore.CfnGatewayTarget(
-      this,
-      "SafetyAgentMcpTarget",
-      {
-        gatewayIdentifier: gateway.attrGatewayIdentifier,
-        name: "hospital-safety-agent-mcp",
-        description: "Hospital Safety Agent exposed as MCP tool via Lambda wrapper",
-        targetConfiguration: {
-          mcp: {
-            lambda: {
-              lambdaArn: safetyAgentLambda.functionArn,
-              toolSchema: {
-                inlinePayload: safetyToolSpec,
-              },
-            },
-          },
-        },
-        credentialProviderConfigurations: [
-          {
-            credentialProviderType: "GATEWAY_IAM_ROLE",
-          },
-        ],
-      }
-    )
-
-    // Ensure proper creation order
-    safetyAgentTarget.addDependency(gateway)
-    safetyAgentTarget.node.addDependency(this.agentRuntime)
-    safetyAgentTarget.node.addDependency(safetyAgentLambda)
-
-    // Outputs
-    new cdk.CfnOutput(this, "SafetyAgentLambdaArn", {
-      value: safetyAgentLambda.functionArn,
-      description: "ARN of the Hospital Safety Agent Lambda wrapper",
-    })
-
-    new cdk.CfnOutput(this, "SafetyAgentTargetId", {
-      value: safetyAgentTarget.ref,
-      description: "Hospital Safety Agent MCP Target ID",
-    })
-  }
-
   private createHealthLakeMcpServer(
     gateway: bedrockagentcore.CfnGateway,
     config: AppConfig
@@ -1523,10 +1377,42 @@ Error handling:
 
 Always ensure claims are submitted correctly and track all submissions for audit purposes.`
 
+    const appealsPromptText = `You are an Appeals Agent specializing in healthcare claim denial management and appeal letter generation.
+
+Your responsibilities:
+1. Analyze claim denial reasons (CARC/RARC codes)
+2. Look up payer-specific appeal timelines and filing requirements
+3. Retrieve supporting clinical guidelines for medical necessity appeals
+4. Generate compliant, evidence-based appeal letters
+5. Save finalized letters to S3 and provide download URLs
+
+Available tools:
+- Gateway KB tools: search_denial_codes, search_appeal_regulations, search_clinical_guidelines
+- Memory: Access conversation history and prior appeal work
+- save_appeal_letter (S3): Persist generated letters
+
+Appeal workflow:
+1. Identify and look up the denial code(s) using search_denial_codes
+2. Check payer-specific appeal deadlines via search_appeal_regulations
+3. Retrieve clinical evidence using search_clinical_guidelines
+4. Draft the appeal letter with supporting documentation
+5. Validate completeness and save to S3 with a presigned URL
+
+When generating appeal letters:
+- Address the letter to the correct payer appeals department
+- Reference the specific claim ID and denial date
+- Clearly state the denial reason code (CARC/RARC)
+- Provide clinical justification supported by guidelines
+- List all supporting documentation being submitted
+- Meet payer-specific format requirements
+
+Always prioritize timely filing — warn if the deadline is approaching or has passed.`
+
     const promptConfigs: { id: string; name: string; text: string }[] = [
       { id: "MedicalCoding", name: "medical-coding-agent", text: medicalCodingPromptText },
       { id: "ClaimsAssembly", name: "claims-assembly-agent", text: claimsAssemblyPromptText },
       { id: "ClaimsSubmission", name: "claims-submission-agent", text: claimsSubmissionPromptText },
+      { id: "Appeals", name: "appeals-agent", text: appealsPromptText },
     ]
 
     for (const pc of promptConfigs) {
@@ -1683,10 +1569,129 @@ Always ensure claims are submitted correctly and track all submissions for audit
    * @returns B2B transformer resource
    */
   private createB2BITransformer(config: AppConfig): b2bi.CfnTransformer {
-    // Basic mapping template - to be customized based on requirements
+    // JSONata mapping template: transforms assemble_837p() JSON output into
+    // the X12 5010 837P interchange structure expected by B2B Data Interchange.
+    // Field references match the keys produced by edi_837p_builder.py:assemble_837p().
     const mappingTemplate = JSON.stringify({
-      // Placeholder mapping - will need to be customized
-      note: "This is a placeholder mapping template. Customize based on your EDI 837P requirements.",
+      interchanges: [{
+        ISA_01_AuthorizationQualifier: "00",
+        ISA_02_AuthorizationInformation: "          ",
+        ISA_03_SecurityQualifier: "00",
+        ISA_04_SecurityInformation: "          ",
+        ISA_05_SenderQualifier: "ZZ",
+        ISA_06_SenderId: "$formatBase(billing_provider.npi, 15)",
+        ISA_07_ReceiverQualifier: "ZZ",
+        ISA_08_ReceiverId: "$formatBase(payer.payer_id, 15)",
+        ISA_09_Date: "$substringBefore($now(), 'T') ~> $replace('-', '') ~> $substring(2)",
+        ISA_10_Time: "$substringAfter($now(), 'T') ~> $substring(0, 5) ~> $replace(':', '')",
+        ISA_11_StandardsId: "^",
+        ISA_12_Version: "00501",
+        ISA_13_InterchangeControlNumber: "000000001",
+        ISA_14_AcknowledgmentRequested: "1",
+        ISA_15_TestIndicator: "T",
+        functional_groups: [{
+          GS_01_FunctionalIdentifierCode: "HC",
+          GS_02_ApplicationSenderCode: "billing_provider.npi",
+          GS_03_ApplicationReceiverCode: "payer.payer_id",
+          GS_04_Date: "$substringBefore($now(), 'T') ~> $replace('-', '')",
+          GS_05_Time: "$substringAfter($now(), 'T') ~> $substring(0, 5) ~> $replace(':', '')",
+          GS_06_GroupControlNumber: "1",
+          GS_07_ResponsibleAgencyCode: "X",
+          GS_08_Version: "005010X222A1",
+          transactions: [{
+            ST_01_TransactionSetIdentifierCode: "837",
+            ST_02_TransactionSetControlNumber: "0001",
+            segments: [
+              {
+                BHT_01: "0019",
+                BHT_02: "00",
+                BHT_03: "claim_id",
+                BHT_04: "$substringBefore($now(), 'T') ~> $replace('-', '')",
+                BHT_05: "$substringAfter($now(), 'T') ~> $substring(0, 5) ~> $replace(':', '')",
+                BHT_06: "CH"
+              },
+              {
+                "NM1-1000_loop": [{
+                  NM1_01: "41",
+                  NM1_02: "2",
+                  NM1_03: "billing_provider.name",
+                  NM1_08: "46",
+                  NM1_09: "billing_provider.npi"
+                }]
+              },
+              {
+                "HL-2000A_loop": [{
+                  HL_01: "1",
+                  HL_03: "20",
+                  HL_04: "1",
+                  PRV_01: "BI",
+                  PRV_02: "PXC",
+                  PRV_03: "billing_provider.taxonomy_code",
+                  "NM1-2010_loop": [
+                    {
+                      NM1_01: "85",
+                      NM1_02: "2",
+                      NM1_03: "billing_provider.name",
+                      NM1_08: "XX",
+                      NM1_09: "billing_provider.npi",
+                      N3_01: "$exists(billing_provider.address) ? billing_provider.address.street : ''",
+                      N4_01: "$exists(billing_provider.address) ? billing_provider.address.city : ''",
+                      N4_02: "$exists(billing_provider.address) ? billing_provider.address.state : ''",
+                      N4_03: "$exists(billing_provider.address) ? billing_provider.address.zip_code : ''",
+                      REF_01: "EI",
+                      REF_02: "billing_provider.tax_id"
+                    },
+                    {
+                      NM1_01: "87",
+                      NM1_02: "2",
+                      NM1_03: "payer.name",
+                      NM1_08: "PI",
+                      NM1_09: "payer.payer_id"
+                    }
+                  ],
+                  "CLM-2300_loop": [{
+                    CLM_01: "claim_id",
+                    CLM_02: "$string(total_charge_amount)",
+                    CLM_05: {
+                      CLM_05_01: "$exists(service_lines[0]) ? service_lines[0].place_of_service : '11'",
+                      CLM_05_02: "B",
+                      CLM_05_03: "1"
+                    },
+                    CLM_06: "Y",
+                    CLM_07: "A",
+                    CLM_08: "Y",
+                    CLM_09: "I",
+                    REF_01: "$exists(prior_authorization_number) ? 'G1' : ''",
+                    REF_02: "$exists(prior_authorization_number) ? prior_authorization_number : ''",
+                    HI_01: {
+                      HI_01_01: "$exists(diagnosis_codes[0]) ? diagnosis_codes[0].code_type : 'ABK'",
+                      HI_01_02: "$exists(diagnosis_codes[0]) ? diagnosis_codes[0].code : ''"
+                    },
+                    HI_02: {
+                      HI_02_01: "$exists(diagnosis_codes[1]) ? diagnosis_codes[1].code_type : ''",
+                      HI_02_02: "$exists(diagnosis_codes[1]) ? diagnosis_codes[1].code : ''"
+                    },
+                    "LX-2400_loop": "$map(service_lines, function($sl, $i) { { 'LX_01': $string($sl.line_number), 'SV1_01': { 'SV1_01_01': 'HC', 'SV1_01_02': $sl.procedure_code, 'SV1_01_03': $exists($sl.modifiers[0]) ? $sl.modifiers[0] : '', 'SV1_01_04': $exists($sl.modifiers[1]) ? $sl.modifiers[1] : '' }, 'SV1_02': $string($sl.charge_amount), 'SV1_03': 'UN', 'SV1_04': $string($sl.units), 'SV1_07': { 'SV1_07_01': $exists($sl.diagnosis_pointers[0]) ? $string($sl.diagnosis_pointers[0]) : '' }, 'DTP_01': '472', 'DTP_02': 'D8', 'DTP_03': $sl.date_of_service } })"
+                  }],
+                  SBR_01: "P",
+                  SBR_09: "MC",
+                  "NM1-2010B_loop": [{
+                    NM1_01: "IL",
+                    NM1_02: "1",
+                    NM1_03: "subscriber.last_name",
+                    NM1_04: "subscriber.first_name",
+                    NM1_08: "MI",
+                    NM1_09: "subscriber.member_id",
+                    DMG_01: "D8",
+                    DMG_02: "subscriber.date_of_birth",
+                    DMG_03: "subscriber.gender"
+                  }]
+                }]
+              }
+            ]
+          }]
+        }]
+      }]
     })
 
     const transformer = new b2bi.CfnTransformer(this, "B2BITransformer", {
