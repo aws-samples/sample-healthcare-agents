@@ -811,7 +811,7 @@ export class BackendStack extends cdk.Stack {
         cacheClusterSize: "0.5",
         cacheTtl: cdk.Duration.minutes(5),
         loggingLevel: apigateway.MethodLoggingLevel.INFO,
-        dataTraceEnabled: true,
+        dataTraceEnabled: false,
         metricsEnabled: true,
         accessLogDestination: new apigateway.LogGroupLogDestination(
           new logs.LogGroup(this, "FeedbackApiAccessLogGroup", {

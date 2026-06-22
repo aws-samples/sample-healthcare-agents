@@ -38,7 +38,7 @@ def get_db_connection():
     return conn
 
 
-@logger.inject_lambda_context(log_event=True)
+@logger.inject_lambda_context(log_event=False)
 def handler(event, context):
     """Initialize Aurora schema"""
 

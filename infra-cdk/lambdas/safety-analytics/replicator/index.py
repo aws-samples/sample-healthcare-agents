@@ -202,11 +202,15 @@ def process_remove(record, cursor, table_mapping):
     logger.info("Record deleted successfully")
 
 
-@logger.inject_lambda_context(log_event=True)
+@logger.inject_lambda_context(log_event=False)
 def handler(event, context):
     """Lambda handler for DynamoDB stream events"""
 
     try:
+        record_count = len(event.get('Records', []))
+        event_names = [r['eventName'] for r in event.get('Records', [])]
+        logger.info("Processing stream records", extra={"record_count": record_count, "event_names": event_names})
+
         # Get table mapping
         table_mapping = get_table_mapping()
         logger.info(f"Table mapping: {table_mapping}")

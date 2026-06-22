@@ -21,11 +21,14 @@ def get_private_key():
 
 def create_jwt_assertion(client_id, token_url):
     """Create JWT assertion for client authentication"""
+    jwks_kid = os.environ.get("EPIC_JWKS_KID")
+    if not jwks_kid:
+        raise SystemExit("Set EPIC_JWKS_KID (key ID matching your JWKS) before running.")
+
     now = int(time.time())
 
-    # JWT header with kid
     headers = {
-        'kid': 'd6442e4fb9469893',
+        'kid': jwks_kid,
         'alg': 'RS256',
         'typ': 'JWT'
     }
