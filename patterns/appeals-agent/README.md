@@ -70,42 +70,45 @@ The appeals knowledge base is pre-loaded with **sample reference data** for demo
 
 > **Important:** This is sample data only. Customers deploying this agent should replace the contents of the appeals KB S3 bucket with their own payer contracts, actual CARC/RARC code libraries, payer-specific appeal filing rules, and clinical guideline references before using in production.
 
-## Tests
+## Sample call
 
-### Unit tests (`tests/unit/patterns/appeals_agent/`)
+```python
+import json
+import boto3
 
-| Test | What it validates |
-|---|---|
-| `test_appeal_letter_builder.py` | `validate_components` catches missing/invalid fields; `build_appeal_letter_html` produces well-formed HTML with all sections; `validate_and_build` end-to-end pipeline |
-| Deadline tracker tests | `check_filing_deadline` returns correct status for on-time, near-deadline, and expired windows; payer-specific deadlines applied correctly |
+payload = {
+    "prompt": "Claim CLM-2026-001 denied CARC 50 for MRI lumbar spine (CPT 72148). "
+              "Patient has 8 weeks low back pain, failed PT and NSAIDs. "
+              "Provider Dr. Smith NPI 1234567890. Payer Aetna. Denial date 2026-05-15. "
+              "Generate an appeal letter and save to S3.",
+    "userId": "billing-staff-001",
+    "runtimeSessionId": "session-appeal-001"
+}
 
-### Integration tests (`tests/integration/runtime/TestAppealsAgent`)
+# Via AgentCore Runtime API
+client = boto3.client("bedrock-agent-runtime", region_name="us-east-1")
+response = client.invoke_agent(
+    agentId="<your-agent-id>",
+    agentAliasId="<your-alias-id>",
+    sessionId=payload["runtimeSessionId"],
+    inputText=payload["prompt"]
+)
 
-| Test | What it validates |
-|---|---|
-| `test_analyze_carc_denial` | CARC 50 denial analyzed; response includes appeal/medical necessity/clinical guidance |
-| `test_lookup_appeal_filing_deadline` | Payer-specific deadline returned with day count or date |
-| `test_generate_appeal_letter_medical_necessity` | Complete letter generated (>300 chars) with appeal/denial/clinical content |
-| `test_generate_appeal_letter_timely_filing` | CO-29 timely filing denial → appeal letter with proof-of-submission language |
-| `test_search_clinical_guidelines` | Clinical criteria for MRI lumbar spine retrieved from KB |
-| `test_multiple_denial_codes_analysis` | CO-4 + CO-97 dual denial analyzed with separate strategies |
-| `test_appeal_letter_saved_to_s3` | Letter generated and saved; response contains S3/URL/saved confirmation |
-
-### Knowledge base tests (`tests/integration/test_appeals_agent.py`)
-
-Direct Bedrock KB retrieval tests for denial codes, appeal regulations, and clinical guidelines, plus S3 round-trip tests for letter storage and presigned URL generation.
-
-## Running tests
+for event in response["completion"]:
+    if "chunk" in event:
+        print(event["chunk"]["bytes"].decode())
+```
 
 ```bash
-# Unit tests (no AWS required)
-python -m pytest tests/unit/patterns/appeals_agent/ -v
-
-# Integration tests (requires deployed stack)
-STACK_NAME=<your-stack> AWS_DEFAULT_REGION=us-east-1 \
-  python -m pytest tests/integration/runtime/test_agent_runtimes.py::TestAppealsAgent -v
-
-# KB + S3 storage tests
-STACK_NAME=<your-stack> AWS_DEFAULT_REGION=us-east-1 \
-  python -m pytest tests/integration/test_appeals_agent.py -v
+# Or via the local development entrypoint
+cd patterns/appeals-agent
+python appeals_agent.py
+# Then POST to the local endpoint:
+curl -X POST http://localhost:8080/invoke \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "What is the appeal filing deadline for Aetna? Denial date was 2026-05-01.",
+    "userId": "billing-staff-001",
+    "runtimeSessionId": "session-001"
+  }'
 ```

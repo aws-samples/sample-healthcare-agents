@@ -49,30 +49,44 @@ Claim JSON → submit_claim → B2BI Input Bucket
                      retrieve_acknowledgments → accepted / rejected
 ```
 
-## Tests
+## Sample call
 
-### Integration tests (`tests/integration/runtime/TestClaimsSubmissionAgent`)
+```python
+import json
+import boto3
 
-| Test | What it validates |
-|---|---|
-| `test_submit_claim_via_b2bi` | Claim submitted to B2BI; response contains job/tracking ID or submission confirmation |
-| `test_check_submission_status` | Agent queries and returns job status (pending, complete, processing, or failed) |
-| `test_retrieve_997_acknowledgment` | Agent retrieves and interprets 997/999 acknowledgment for a claim |
-| `test_list_recent_submissions` | Agent returns submission history with claim/job references |
-| `test_submission_with_invalid_claim_handled` | Malformed claim payload produces a meaningful response rather than a crash |
+payload = {
+    "prompt": "Submit this claim to Aetna: patient PAT001, procedure 99213, "
+              "diagnosis I10, provider NPI 1234567890, charge $150, "
+              "date of service 2026-06-18, member ID AET123456.",
+    "userId": "biller-001",
+    "runtimeSessionId": "session-submit-001"
+}
 
-### B2BI workflow tests (`tests/integration/test_b2bi_workflow.py`)
+# Via AgentCore Runtime API
+client = boto3.client("bedrock-agent-runtime", region_name="us-east-1")
+response = client.invoke_agent(
+    agentId="<your-agent-id>",
+    agentAliasId="<your-alias-id>",
+    sessionId=payload["runtimeSessionId"],
+    inputText=payload["prompt"]
+)
 
-End-to-end tests covering the full B2B Data Interchange pipeline — bucket access, transformer invocation, and acknowledgment retrieval.
-
-## Running tests
+for event in response["completion"]:
+    if "chunk" in event:
+        print(event["chunk"]["bytes"].decode())
+```
 
 ```bash
-# Integration tests (requires deployed stack)
-STACK_NAME=<your-stack> AWS_DEFAULT_REGION=us-east-1 \
-  python -m pytest tests/integration/runtime/test_agent_runtimes.py::TestClaimsSubmissionAgent -v
-
-# B2BI workflow tests
-STACK_NAME=<your-stack> AWS_DEFAULT_REGION=us-east-1 \
-  python -m pytest tests/integration/test_b2bi_workflow.py -v
+# Or via the local development entrypoint
+cd patterns/claims-submission-agent
+python claims_submission_agent.py
+# Then POST to the local endpoint:
+curl -X POST http://localhost:8080/invoke \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Check the status of claim submission job ID job-abc-12345.",
+    "userId": "biller-001",
+    "runtimeSessionId": "session-001"
+  }'
 ```

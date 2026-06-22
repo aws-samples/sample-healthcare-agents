@@ -60,29 +60,45 @@ The validation rules knowledge base is pre-loaded with **sample reference data**
 
 > **Important:** This is sample data only. Customers deploying this agent should replace the contents of the validation KB S3 bucket with their actual payer contracts, current HIPAA transaction standards, and payer-specific EDI requirements before using in production.
 
-## Tests
+## Sample call
 
-### Integration tests (`tests/integration/runtime/TestClaimsAssemblyAgent`)
+```python
+import json
+import boto3
 
-| Test | What it validates |
-|---|---|
-| `test_validate_complete_claim` | All required fields present → agent reports validation pass |
-| `test_assemble_edi_837p_structure` | Complete inputs → EDI 837P segments (CLM, NM1, SV1, DTP, or 837) appear in response |
-| `test_rejects_invalid_npi` | 5-digit NPI → agent flags the format error |
-| `test_rejects_missing_diagnosis` | No diagnosis code → agent flags missing required field |
-| `test_hipaa_5010_compliance_check` | Agent references HIPAA 5010 standards in compliance response |
-| `test_multi_service_line_claim` | Both procedure codes (99214 + 93000) appear in assembled claim |
-| `test_payer_specific_validation_rules` | Medicare-specific requirements retrieved from validation KB |
-| `test_procedure_code_format_validation` | 4-digit CPT → agent flags the format error |
+payload = {
+    "prompt": "Assemble an EDI 837P claim: patient Jane Smith DOB 19750320 "
+              "member ID ABC123, provider NPI 1234567890 Tax ID 123456789, "
+              "procedure 99214 date 20260610 charge $200 diagnosis I10. "
+              "Payer UnitedHealthcare ID 87726.",
+    "userId": "biller-001",
+    "runtimeSessionId": "session-claims-001"
+}
 
-## Running tests
+# Via AgentCore Runtime API
+client = boto3.client("bedrock-agent-runtime", region_name="us-east-1")
+response = client.invoke_agent(
+    agentId="<your-agent-id>",
+    agentAliasId="<your-alias-id>",
+    sessionId=payload["runtimeSessionId"],
+    inputText=payload["prompt"]
+)
+
+for event in response["completion"]:
+    if "chunk" in event:
+        print(event["chunk"]["bytes"].decode())
+```
 
 ```bash
-# Integration tests (requires deployed stack)
-STACK_NAME=<your-stack> AWS_DEFAULT_REGION=us-east-1 \
-  python -m pytest tests/integration/runtime/test_agent_runtimes.py::TestClaimsAssemblyAgent -v
-
-# KB retrieval tests (requires deployed stack)
-STACK_NAME=<your-stack> AWS_DEFAULT_REGION=us-east-1 \
-  python -m pytest tests/integration/test_claims_assembly_agent.py -v
+# Or via the local development entrypoint
+cd patterns/claims-assembly-agent
+python claims_assembly_agent.py
+# Then POST to the local endpoint:
+curl -X POST http://localhost:8080/invoke \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "What are the Medicare-specific requirements for submitting CPT 72148?",
+    "userId": "biller-001",
+    "runtimeSessionId": "session-001"
+  }'
 ```
