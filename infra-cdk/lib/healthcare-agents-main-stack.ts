@@ -943,7 +943,7 @@ export class HealthcareAgentsMainStack extends cdk.Stack {
         throttlingRateLimit: 100,
         throttlingBurstLimit: 200,
         loggingLevel: apigateway.MethodLoggingLevel.INFO,
-        dataTraceEnabled: true,
+        dataTraceEnabled: false,
         metricsEnabled: true,
         accessLogDestination: new apigateway.LogGroupLogDestination(
           new logs.LogGroup(this, "PlatformFeedbackApiAccessLogGroup", {

@@ -23,6 +23,7 @@ class EpicFHIRClient:
 
     def __init__(self):
         self.client_id = os.environ.get('EPIC_CLIENT_ID')
+        self.jwks_kid = os.environ.get('EPIC_JWKS_KID')
         self.private_key_secret_name = os.environ.get('EPIC_PRIVATE_KEY_SECRET')
         self.fhir_base_url = os.environ.get('EPIC_FHIR_BASE_URL',
                                             'https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4')
@@ -50,11 +51,13 @@ class EpicFHIRClient:
 
     def _create_jwt_assertion(self) -> str:
         """Create JWT assertion for client authentication"""
+        if not self.jwks_kid:
+            raise ValueError("EPIC_JWKS_KID environment variable not set")
+
         now = int(time.time())
 
-        # JWT header with kid (key identifier from JWKS)
         headers = {
-            'kid': 'd6442e4fb9469893',  # Must match kid in JWKS
+            'kid': self.jwks_kid,
             'alg': 'RS256',
             'typ': 'JWT'
         }
