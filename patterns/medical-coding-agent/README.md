@@ -56,44 +56,45 @@ The medical codes knowledge base is pre-loaded with **sample reference data** fo
 
 > **Important:** This is sample data only. Customers deploying this agent should replace the contents of the medical codes KB S3 bucket with licensed, current-year code sets from the appropriate authorities (CMS for ICD-10-CM, AMA for CPT, SNOMED International for SNOMED CT) before using in production.
 
-## Tests
+## Sample call
 
-### Unit tests (`tests/unit/patterns/medical_coding/`)
+```python
+import json
+import boto3
 
-| Test | What it validates |
-|---|---|
-| `TestGetSsmParameter` (3 tests) | SSM lookup happy path; `ParameterNotFound` raises `ValueError`; generic exceptions wrapped correctly |
-| `TestGetSystemPrompt` (2 tests) | Returns correct prompt text; ARN parsed to extract promptId and version correctly |
-| `TestQueryKnowledgeBase` (4 tests) | Results formatted from raw Bedrock response; empty results return `[]`; exceptions return `[]` gracefully; `max_results` passed through to API |
-| `TestKbTool` (4 tests) | No-results returns JSON message; results include content + relevance score; `code_type=all` passes query unchanged; specific code type appended to query string |
-| `agent_stream` (5 tests) | Missing `prompt`/`userId`/`sessionId` each yield an error event; agent creation failure yields error event; happy-path events forwarded unchanged |
+payload = {
+    "prompt": "Extract diagnosis and procedure codes from this note: "
+              "65-year-old male presents with acute exacerbation of COPD. "
+              "Started on prednisone 40mg taper and albuterol nebulizer q4h. "
+              "Chest X-ray shows hyperinflation, no infiltrate.",
+    "userId": "coder-001",
+    "runtimeSessionId": "session-coding-001"
+}
 
-### Integration tests (`tests/integration/runtime/TestMedicalCodingAgent`)
+# Via AgentCore Runtime API
+client = boto3.client("bedrock-agent-runtime", region_name="us-east-1")
+response = client.invoke_agent(
+    agentId="<your-agent-id>",
+    agentAliasId="<your-alias-id>",
+    sessionId=payload["runtimeSessionId"],
+    inputText=payload["prompt"]
+)
 
-| Test | What it validates |
-|---|---|
-| `test_extracts_entities_from_clinical_note` | Comprehend Medical returns conditions and medications from free text |
-| `test_detects_phi_in_note` | PHI detection flags name, DOB, MRN, or address |
-| `test_single_diagnosis_icd10` | J44.1 returned for COPD with acute exacerbation |
-| `test_multi_diagnosis_icd10` | ≥3 of J18/I50/I48/E11 returned for complex multi-comorbidity admit note |
-| `test_diabetes_with_ckd_icd10` | E11.22 + N18.3 both present for T2DM+CKD combination |
-| `test_medication_adverse_effect_icd10` | T36 or T78 codes returned for penicillin anaphylaxis |
-| `test_ambiguous_note_uses_symptom_code` | R07 (chest pain) returned for rule-out ACS; I21 (MI) not returned |
-| `test_history_vs_active_cancer_code` | Z85 history code returned for surveillance visit; active C50 not returned |
-| `test_procedure_cpt_code` | 47562 returned for laparoscopic cholecystectomy with cholangiogram |
-| `test_colonoscopy_with_polypectomy_cpt` | 45385 returned for colonoscopy with snare polypectomy |
-| `test_office_visit_cpt` | 99214 returned for moderate complexity established patient visit |
-| `test_snomed_mapping` | SNOMED CT concept returned for a clinical term |
-| `test_full_coding_workflow` | M17.11 + 27447 both returned for right total knee arthroplasty note |
-| `test_rejects_wrong_laterality` | M17.11 (right) returned; M17.12 (left) not returned |
-
-## Running tests
+for event in response["completion"]:
+    if "chunk" in event:
+        print(event["chunk"]["bytes"].decode())
+```
 
 ```bash
-# Unit tests (no AWS required)
-python -m pytest tests/unit/patterns/medical_coding/ -v
-
-# Integration tests (requires deployed stack)
-STACK_NAME=<your-stack> AWS_DEFAULT_REGION=us-east-1 \
-  python -m pytest tests/integration/runtime/test_agent_runtimes.py::TestMedicalCodingAgent -v
+# Or via the local development entrypoint
+cd patterns/medical-coding-agent
+python medical_coding_agent.py
+# Then POST to the local endpoint:
+curl -X POST http://localhost:8080/invoke \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "What CPT code for a colonoscopy with snare polypectomy of an 8mm sessile sigmoid polyp?",
+    "userId": "coder-001",
+    "runtimeSessionId": "session-001"
+  }'
 ```
