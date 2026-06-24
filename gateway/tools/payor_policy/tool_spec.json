@@ -79,6 +79,10 @@
           "payor_name": {
             "type": "string",
             "description": "Optional: Payor name for payor-specific rules"
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional: medication or procedure name/display (e.g., 'adalimumab 40 MG/0.8 ML [Humira]'). Used to flag specialty/biologic drugs when the code is a product-level RxNorm code not in the reference table."
           }
         },
         "required": ["procedure_code"]

@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useAuth } from "@/hooks/useAuth"
 import { useAuthToken } from "@/lib/useAuthToken"
 import { GlobalContextProvider } from "@/app/context/GlobalContext"
+import { usePatient } from "@/app/context/PatientContext"
 import { invokeAgentCore, generateSessionId, setAgentConfig } from "@/services/agentCoreService"
 import { Shield, Search, CheckCircle, AlertCircle, Loader2, ArrowLeft } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -28,6 +29,7 @@ const INITIAL_STEPS: WorkflowStep[] = [
 function EligibilityWorkflow() {
   const { isAuthenticated, signIn } = useAuth()
   const { accessToken, userId } = useAuthToken()
+  const { patient } = usePatient()
   const router = useRouter()
   const [configLoaded, setConfigLoaded] = useState(false)
   const [sessionId] = useState(() => generateSessionId())
@@ -51,7 +53,7 @@ function EligibilityWorkflow() {
         const response = await fetch("/aws-exports.json")
         if (!response.ok) throw new Error("Failed to load configuration")
         const config = await response.json()
-        const runtimeArn = config.eligibilityRuntimeArn || config.agentRuntimeArn
+        const runtimeArn = config.agents?.["eligibility-verification-agent"]?.runtimeArn || config.eligibilityRuntimeArn || config.agentRuntimeArn
         if (!runtimeArn) throw new Error("Agent Runtime ARN not found")
         await setAgentConfig(runtimeArn, config.awsRegion || "us-east-1", "eligibility-verification-agent")
         setConfigLoaded(true)
@@ -61,6 +63,16 @@ function EligibilityWorkflow() {
     }
     if (isAuthenticated) loadConfig()
   }, [isAuthenticated])
+
+  // Prefill from selected-patient context.
+  useEffect(() => {
+    if (patient?.id) {
+      setPatientId(patient.id)
+      if (patient.name) setPatientName(patient.name)
+      if (patient.payorName) setPayorName(patient.payorName)
+      if (patient.memberId) setMemberId(patient.memberId)
+    }
+  }, [patient])
 
   const updateStep = (stepId: string, status: WorkflowStep['status'], detail?: string) => {
     setSteps(prev => prev.map(s => s.id === stepId ? { ...s, status, detail } : s))

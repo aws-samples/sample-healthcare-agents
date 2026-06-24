@@ -125,5 +125,24 @@
       },
       "required": ["patient_id"]
     }
+  },
+  {
+    "name": "create_fhir_resource",
+    "description": "Create (persist) a new FHIR resource on the patient's HealthLake record. Use this to save a prior-authorization decision as a FHIR ClaimResponse, or to create a Task. CREATE-ONLY — it cannot update or delete existing resources. Provide the FHIR resourceType and the complete resource as a JSON object.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "resource_type": {
+          "type": "string",
+          "description": "FHIR resource type to create, e.g. 'ClaimResponse' or 'Task'"
+        },
+        "resource_data": {
+          "type": "object",
+          "description": "The complete FHIR resource as a JSON object. The resourceType field is set automatically to match resource_type.",
+          "additionalProperties": true
+        }
+      },
+      "required": ["resource_type", "resource_data"]
+    }
   }
 ]

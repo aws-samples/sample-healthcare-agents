@@ -13,6 +13,7 @@ import { useAuth } from "react-oidc-context"
 
 export type AuthToken = {
   accessToken: string | null
+  idToken: string | null
   userId: string | null
   isAuthenticated: boolean
 }
@@ -21,6 +22,7 @@ export function useAuthToken(): AuthToken {
   const auth = useAuth()
   return {
     accessToken: auth.user?.access_token ?? null,
+    idToken: auth.user?.id_token ?? null,
     userId: auth.user?.profile?.sub ?? null,
     isAuthenticated: !!auth.isAuthenticated,
   }

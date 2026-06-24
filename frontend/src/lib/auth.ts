@@ -81,6 +81,14 @@ export async function createCognitoAuthConfig(): Promise<CognitoAuthConfig> {
 
   const inMemoryStore = new InMemoryWebStorage()
 
+  // Threat T3: tokens stay in memory only (userStore). The OIDC interaction
+  // state (state/nonce/PKCE code_verifier) MUST survive the full-page redirect
+  // to the Cognito hosted UI and back, so it uses sessionStorage. These values
+  // are transient, single-use, and contain no tokens — storing them in
+  // sessionStorage is the standard, safe approach and is cleared on tab close.
+  const stateStorageBackend =
+    typeof window !== "undefined" ? window.sessionStorage : inMemoryStore
+
   const config: CognitoAuthConfig = {
     authority: awsExports.authority,
     client_id: awsExports.client_id,
@@ -91,7 +99,8 @@ export async function createCognitoAuthConfig(): Promise<CognitoAuthConfig> {
     automaticSilentRenew: awsExports.automaticSilentRenew ?? true,
     // T3: keep tokens in memory only.
     userStore: new WebStorageStateStore({ store: inMemoryStore }),
-    stateStore: new WebStorageStateStore({ store: inMemoryStore }),
+    // Interaction state must persist across the redirect — use sessionStorage.
+    stateStore: new WebStorageStateStore({ store: stateStorageBackend }),
   }
 
   configCache = config

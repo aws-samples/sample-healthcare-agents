@@ -37,6 +37,96 @@ session = boto3.Session()
 credentials = session.get_credentials()
 http_session = URLLib3Session()
 
+# Single-source-of-truth prior-auth requirement rule lives in the payor-policy
+# Lambda (lookup_prior_auth_requirements). CDS order-select delegates to it so
+# the EHR card and the Prior Auth Agent share one rule source. The local
+# keyword heuristic below is kept only as a resilience fallback if the
+# payor-policy Lambda is unavailable.
+PAYOR_POLICY_LAMBDA_NAME = os.getenv("PAYOR_POLICY_LAMBDA_NAME")
+# App URL used to deep-link the EHR card to the agent-backed prior-auth flow.
+APP_URL = os.getenv("APP_URL", "").rstrip("/")
+# Option 2: headless agent Function URL + HMAC secret to sign card links so a
+# click runs the full Prior Auth Agent with no browser login / multi-step UI.
+PRIOR_AUTH_RUN_URL = os.getenv("PRIOR_AUTH_RUN_URL", "").rstrip("/")
+RUN_SECRET_ARN = os.getenv("RUN_SECRET_ARN", "")
+_lambda_client = boto3.client("lambda", region_name=aws_region)
+_sm_client = boto3.client("secretsmanager", region_name=aws_region)
+_run_secret_cache = {}
+
+
+def _get_run_secret():
+    """Fetch (and cache) the HMAC secret used to sign Option 2 run links."""
+    if not RUN_SECRET_ARN:
+        return None
+    if "v" not in _run_secret_cache:
+        try:
+            _run_secret_cache["v"] = _sm_client.get_secret_value(
+                SecretId=RUN_SECRET_ARN
+            )["SecretString"]
+        except Exception:
+            logger.warning("run_secret_fetch_failed", exc_info=False)
+            _run_secret_cache["v"] = None
+    return _run_secret_cache["v"]
+
+
+def _prior_auth_run_link(patient_id, code, desc, payor):
+    """Build a short-lived HMAC-signed link to the headless agent Function URL.
+
+    Returns None if Option 2 isn't configured, so the caller can fall back to
+    the in-app deep link.
+    """
+    import hashlib
+    import hmac
+    import time
+
+    secret = _get_run_secret()
+    if not PRIOR_AUTH_RUN_URL or not secret or not patient_id:
+        return None
+    exp = str(int(time.time()) + 1800)  # 30-minute validity
+    sig = hmac.new(
+        secret.encode("utf-8"), f"{patient_id}|{exp}".encode("utf-8"), hashlib.sha256
+    ).hexdigest()
+    qs = "&".join([
+        f"patientId={urllib.parse.quote(patient_id)}",
+        f"code={urllib.parse.quote(code or '')}",
+        f"desc={urllib.parse.quote(desc or '')}",
+        f"payor={urllib.parse.quote(payor or '')}",
+        f"exp={exp}",
+        f"sig={sig}",
+    ])
+    return f"{PRIOR_AUTH_RUN_URL}?{qs}"
+
+
+def _requirement_from_policy(procedure_code, payer_name, description=None):
+    """Query the canonical payor-policy requirement rule (single source of truth).
+
+    Invokes the payor-policy Lambda's lookup_prior_auth_requirements tool, passing
+    both the code and the medication/procedure description (EHRs send product-level
+    RxNorm codes that vary, so name matching is the reliable signal for drugs).
+    Returns True/False when determinable, or None if it could not be resolved.
+    """
+    if not PAYOR_POLICY_LAMBDA_NAME or (not procedure_code and not description):
+        return None
+    try:
+        resp = _lambda_client.invoke(
+            FunctionName=PAYOR_POLICY_LAMBDA_NAME,
+            InvocationType="RequestResponse",
+            Payload=json.dumps({
+                "action_name": "lookup_prior_auth_requirements",
+                "procedure_code": procedure_code,
+                "payor_name": payer_name,
+                "description": description,
+            }).encode("utf-8"),
+        )
+        payload = json.loads(resp["Payload"].read() or b"{}")
+        text = (payload.get("content") or [{}])[0].get("text", "{}")
+        data = json.loads(text)
+        val = data.get("typically_requires_prior_auth")
+        return val if isinstance(val, bool) else None
+    except Exception:
+        logger.warning("payor_policy_lookup_failed", exc_info=False)
+        return None
+
 # DTR config path for payer questionnaire lookup
 DTR_CONFIG_PATH = os.getenv(
     "DTR_CONFIG_PATH",
@@ -98,6 +188,37 @@ def fhir_search(resource_type, params):
         )
 
     return json.loads(response.content)
+
+
+def _codeable_label(cc):
+    """Best-effort human label from a FHIR CodeableConcept.
+
+    EHRs/CDS clients populate the ordered item inconsistently — sometimes in
+    ``text``, sometimes only in ``coding[].display``, sometimes only a code.
+    Try them in order so the prior-auth keyword/code logic has something to work
+    with (fixes 'Unknown medication' when the sandbox omits .text).
+    """
+    if not isinstance(cc, dict):
+        return None
+    if cc.get("text"):
+        return cc["text"]
+    for c in cc.get("coding") or []:
+        if c.get("display"):
+            return c["display"]
+    for c in cc.get("coding") or []:
+        if c.get("code"):
+            return c["code"]
+    return None
+
+
+def _first_code(cc):
+    """Return the first coding code from a CodeableConcept, or None."""
+    if not isinstance(cc, dict):
+        return None
+    for c in cc.get("coding") or []:
+        if c.get("code"):
+            return c["code"]
+    return None
 
 
 def get_cds_services(*, public: bool = False):
@@ -259,25 +380,39 @@ def handle_order_select(event):
         resource = order_entry.get("resource", {})
         resource_type = resource.get("resourceType", "")
 
-        # Extract the ordered item description and procedure code
+        # Extract the ordered item description and code. EHR/CDS clients vary in
+        # where they put the label (text vs coding.display vs medicationReference),
+        # so parse defensively.
         procedure_code = None
         if resource_type == "MedicationRequest":
-            order_desc = (
-                resource.get("medicationCodeableConcept", {}).get("text", "Unknown medication")
-            )
             order_type = "medication"
-            codings = resource.get("medicationCodeableConcept", {}).get("coding", [])
-            if codings:
-                procedure_code = codings[0].get("code")
+            cc = resource.get("medicationCodeableConcept", {})
+            order_desc = _codeable_label(cc)
+            procedure_code = _first_code(cc)
+            if not order_desc:
+                # Some clients send a medicationReference instead of a concept
+                order_desc = (resource.get("medicationReference") or {}).get("display")
+            order_desc = order_desc or "Unknown medication"
         elif resource_type == "ServiceRequest":
-            order_desc = resource.get("code", {}).get("text", "Unknown procedure")
             order_type = "procedure"
-            codings = resource.get("code", {}).get("coding", [])
-            if codings:
-                procedure_code = codings[0].get("code")
+            cc = resource.get("code", {})
+            order_desc = _codeable_label(cc) or "Unknown procedure"
+            procedure_code = _first_code(cc)
         else:
             order_desc = "Unknown order"
             order_type = "other"
+
+        # Diagnostic: log the order item shape (synthetic order data, not PHI) so
+        # we can see how the calling EHR/sandbox structured the medication/code.
+        logger.info(
+            "order_select_item type=%s resolved_desc=%r code=%s raw=%s",
+            resource_type,
+            order_desc,
+            procedure_code,
+            json.dumps(resource.get("medicationCodeableConcept")
+                       or resource.get("medicationReference")
+                       or resource.get("code") or {})[:500],
+        )
 
         # Check patient claims history for this type of order
         try:
@@ -286,10 +421,29 @@ def handle_order_select(event):
         except Exception:
             has_prior_claims = False
 
-        # Determine if prior auth is likely required
-        prior_auth_required = _evaluate_prior_auth_requirement(
-            order_type, order_desc, has_coverage, has_prior_claims
-        )
+        # Determine if prior auth is required. The canonical payor-policy rule
+        # (shared with the Prior Auth Agent) is the single source of truth and
+        # is fully dynamic — it model-assesses the actual submitted order. There
+        # is intentionally NO hardcoded keyword/code fallback here: asserting a
+        # negative from a keyword miss caused false "No Prior Auth Required"
+        # results. If the canonical rule cannot be resolved we surface an
+        # explicit "could not determine" card rather than guessing.
+        prior_auth_required = _requirement_from_policy(procedure_code, payer_name, order_desc)
+
+        if prior_auth_required is None:
+            cards.append(
+                {
+                    "summary": f"Unable to determine prior authorization for {order_desc}",
+                    "indicator": "warning",
+                    "detail": (
+                        f"The prior-authorization rule service was unavailable for this "
+                        f"{order_type}: {order_desc}. Verify requirements directly with the "
+                        "payer before proceeding."
+                    ),
+                    "source": {"label": "Prior Auth Agent"},
+                }
+            )
+            continue
 
         if prior_auth_required:
             card = {
@@ -346,6 +500,23 @@ def handle_order_select(event):
                     "Manual documentation may be required."
                 )
 
+            # Route the card's submit link to the full Amplify prior-auth UI,
+            # carrying the order context so the app auto-populates it. The app
+            # resolves patient demographics/coverage and runs the agent-backed
+            # workflow (which makes the decision and persists the ClaimResponse).
+            if APP_URL:
+                qs = "&".join([
+                    f"patientId={urllib.parse.quote(patient_id)}",
+                    f"code={urllib.parse.quote(procedure_code or '')}",
+                    f"desc={urllib.parse.quote(order_desc or '')}",
+                    f"payor={urllib.parse.quote(payer_name or '')}",
+                ])
+                card.setdefault("links", []).append({
+                    "label": "Submit Prior Authorization (AI agent)",
+                    "url": f"{APP_URL}/orders/prior-auth?{qs}",
+                    "type": "absolute",
+                })
+
             cards.append(card)
         else:
             cards.append(
@@ -358,34 +529,6 @@ def handle_order_select(event):
             )
 
     return {"cards": cards}
-
-
-def _evaluate_prior_auth_requirement(order_type, order_desc, has_coverage, has_prior_claims):
-    """
-    Evaluate whether prior authorization is required.
-
-    In production, this would:
-    1. Look up payor-specific rules from a knowledge base
-    2. Execute CQL rules against patient data
-    3. Check the payor's prior auth requirement list
-
-    For now, uses heuristic rules as a starting point.
-    """
-    # High-cost procedures/medications that commonly require prior auth
-    prior_auth_keywords = [
-        "mri", "ct scan", "pet scan", "surgery", "biopsy",
-        "chemotherapy", "radiation", "transplant", "implant",
-        "biologics", "specialty", "infusion", "genetic testing",
-        "sleep study", "physical therapy", "occupational therapy",
-        "home health", "durable medical equipment", "dme",
-    ]
-
-    order_lower = order_desc.lower()
-    for keyword in prior_auth_keywords:
-        if keyword in order_lower:
-            return True
-
-    return False
 
 
 def _allowed_cors_origin(event):

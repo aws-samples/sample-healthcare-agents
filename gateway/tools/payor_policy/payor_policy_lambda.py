@@ -17,6 +17,7 @@ Policy documents are stored in S3 and indexed by Amazon Bedrock Knowledge Base
 import json
 import logging
 import os
+import re
 import traceback
 from datetime import datetime
 
@@ -30,6 +31,66 @@ aws_region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
 POLICY_KB_ID = os.getenv("POLICY_KB_ID")
 POLICY_BUCKET = os.getenv("POLICY_BUCKET")
 POLICY_DATA_SOURCE_ID = os.getenv("POLICY_DATA_SOURCE_ID")
+# Fast model used to dynamically assess prior-auth requirement for a submitted
+# medication/procedure (no hardcoded drug allow-list).
+PRIOR_AUTH_MODEL_ID = os.getenv(
+    "PRIOR_AUTH_MODEL_ID", "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+)
+
+
+def _dynamic_requirement(procedure_code, description, payor_name, kb_data):
+    """Dynamically decide if a submitted order requires prior authorization.
+
+    Reasons about the *actual* medication/procedure (drug class, cost, advanced
+    imaging/surgery) for the given payer using Bedrock, grounded with any payer
+    policy KB excerpts. This is intentionally NOT a hardcoded allow-list.
+
+    Returns (requires: bool|None, name: str|None, source: str|None). Returns
+    (None, None, None) when the model call is unavailable so the caller can fall
+    back to the offline reference table.
+    """
+    label = (description or "").strip() or (procedure_code or "").strip()
+    if not label:
+        return None, None, None
+    try:
+        client = boto3.client("bedrock-runtime", region_name=aws_region)
+        excerpts = ""
+        results = (kb_data or {}).get("policy_results") or []
+        if results:
+            excerpts = "\n\nPayer policy excerpts:\n" + "\n---\n".join(
+                (r.get("content", "") or "")[:600] for r in results[:3]
+            )
+        payer_txt = f" for payer '{payor_name}'" if payor_name else ""
+        prompt = (
+            "You are a prior-authorization rules engine for US health insurance. "
+            f"Decide whether this order typically requires prior authorization{payer_txt}.\n"
+            f"Order description: {label}\n"
+            f"Code: {procedure_code or 'n/a'}{excerpts}\n\n"
+            "Base the decision on standard utilization management: specialty/biologic/"
+            "high-cost injectable or infused drugs, oncology agents, advanced imaging "
+            "(MRI/CT/PET), and major surgical procedures generally require prior auth; "
+            "routine generics, office visits, and basic labs generally do not. "
+            "If payer policy excerpts are provided, prefer them.\n"
+            'Respond with ONLY compact JSON: '
+            '{"requires": true|false, "name": "<short order name>", "reason": "<short>"}'
+        )
+        body = {
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": 150,
+            "temperature": 0,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        resp = client.invoke_model(modelId=PRIOR_AUTH_MODEL_ID, body=json.dumps(body))
+        payload = json.loads(resp["body"].read())
+        text = "".join(b.get("text", "") for b in payload.get("content", []))
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        data = json.loads(match.group(0)) if match else {}
+        val = data.get("requires")
+        if isinstance(val, bool):
+            return val, (data.get("name") or label), "model"
+    except Exception:
+        logger.warning("dynamic_requirement_unavailable", exc_info=False)
+    return None, None, None
 
 
 def search_payor_policies(query, payor_name=None, procedure_code=None, max_results=5):
@@ -279,7 +340,7 @@ def list_policy_documents(payor_name=None):
         return json.dumps({"error": str(e)})
 
 
-def lookup_prior_auth_requirements(procedure_code, payor_name=None):
+def lookup_prior_auth_requirements(procedure_code, payor_name=None, description=None):
     """
     Look up prior authorization requirements for a specific procedure code.
 
@@ -303,31 +364,41 @@ def lookup_prior_auth_requirements(procedure_code, payor_name=None):
     kb_results = search_payor_policies(query, payor_name, procedure_code, max_results=3)
     kb_data = json.loads(kb_results)
 
-    # Common procedures that typically require prior auth (fallback reference)
-    common_prior_auth_procedures = {
-        "77065": {"name": "Diagnostic Mammography", "typically_requires_pa": True},
-        "77066": {"name": "Diagnostic Mammography bilateral", "typically_requires_pa": True},
-        "72148": {"name": "MRI Lumbar Spine without contrast", "typically_requires_pa": True},
-        "72149": {"name": "MRI Lumbar Spine with contrast", "typically_requires_pa": True},
-        "72158": {"name": "MRI Lumbar Spine without then with contrast", "typically_requires_pa": True},
-        "70553": {"name": "MRI Brain with and without contrast", "typically_requires_pa": True},
-        "27447": {"name": "Total Knee Replacement", "typically_requires_pa": True},
-        "27130": {"name": "Total Hip Replacement", "typically_requires_pa": True},
-        "43239": {"name": "Upper GI Endoscopy with Biopsy", "typically_requires_pa": False},
-        "99213": {"name": "Office Visit Level 3", "typically_requires_pa": False},
-        "99214": {"name": "Office Visit Level 4", "typically_requires_pa": False},
+    # Offline fallback reference — used ONLY if the dynamic model assessment is
+    # unavailable. This is not the primary decision path.
+    fallback_procedures = {
+        "77065": {"name": "Diagnostic Mammography", "requires": True},
+        "77066": {"name": "Diagnostic Mammography bilateral", "requires": True},
+        "72148": {"name": "MRI Lumbar Spine without contrast", "requires": True},
+        "72149": {"name": "MRI Lumbar Spine with contrast", "requires": True},
+        "70553": {"name": "MRI Brain with and without contrast", "requires": True},
+        "27447": {"name": "Total Knee Replacement", "requires": True},
+        "27130": {"name": "Total Hip Replacement", "requires": True},
+        "99213": {"name": "Office Visit Level 3", "requires": False},
+        "99214": {"name": "Office Visit Level 4", "requires": False},
     }
 
-    procedure_info = common_prior_auth_procedures.get(procedure_code, {})
+    # Primary: dynamically assess the actual submitted order (medication/procedure),
+    # grounded with any payer-policy KB excerpts. No hardcoded drug allow-list.
+    requires, name, source = _dynamic_requirement(procedure_code, description, payor_name, kb_data)
+
+    # Fallback: offline reference table only if the dynamic assessment was unavailable.
+    if requires is None:
+        info = fallback_procedures.get(procedure_code, {})
+        requires = info.get("requires", "unknown")
+        name = info.get("name") or description or "Unknown — check policy documents"
+        source = "reference-table"
 
     return json.dumps({
         "procedure_code": procedure_code,
         "payor": payor_name,
-        "procedure_name": procedure_info.get("name", "Unknown — check policy documents"),
-        "typically_requires_prior_auth": procedure_info.get("typically_requires_pa", "unknown"),
+        "procedure_name": name,
+        "typically_requires_prior_auth": requires,
+        "determination_source": source,
         "policy_kb_results": kb_data.get("policy_results", []),
-        "note": "Results are based on uploaded policy documents and general guidelines. "
-                "Always verify with the specific payor for the most current requirements.",
+        "note": "Determination is dynamic (model-assessed for the submitted order, grounded "
+                "in payer policy when a knowledge base is configured). Always verify with the "
+                "specific payor for the most current requirements.",
     }, indent=2)
 
 
@@ -385,6 +456,7 @@ def handler(event, context):
             result = lookup_prior_auth_requirements(
                 procedure_code=event.get("procedure_code", ""),
                 payor_name=event.get("payor_name"),
+                description=event.get("description"),
             )
         else:
             return {

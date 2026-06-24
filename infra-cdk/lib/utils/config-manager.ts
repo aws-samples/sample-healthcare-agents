@@ -91,7 +91,20 @@ export class ConfigManager {
           deployment_type: deploymentType,
           // New multi-pattern support
           patterns: patterns,
-          healthlake: parsedConfig.backend?.healthlake,
+          // Allow a deploy-time override of the HealthLake datastore ID via the
+          // HEALTHLAKE_DATASTORE_ID env var, so the real ID never has to be
+          // committed to config.yaml (which keeps a placeholder for the public
+          // repo). Falls back to whatever is in config.yaml.
+          healthlake: parsedConfig.backend?.healthlake
+            ? {
+                ...parsedConfig.backend.healthlake,
+                datastore_id:
+                  process.env.HEALTHLAKE_DATASTORE_ID ||
+                  parsedConfig.backend.healthlake.datastore_id,
+              }
+            : process.env.HEALTHLAKE_DATASTORE_ID
+              ? { datastore_id: process.env.HEALTHLAKE_DATASTORE_ID }
+              : undefined,
         },
       }
     } catch (error) {

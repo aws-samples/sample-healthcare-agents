@@ -1,5 +1,6 @@
 import { AuthProvider } from "@/components/auth/AuthProvider"
 import { LegacyStorageEviction } from "@/components/auth/LegacyStorageEviction"
+import { PatientContextProvider } from "@/app/context/PatientContext"
 import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import "./globals.css"
@@ -28,7 +29,9 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <LegacyStorageEviction />
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <PatientContextProvider>{children}</PatientContextProvider>
+        </AuthProvider>
       </body>
     </html>
   )

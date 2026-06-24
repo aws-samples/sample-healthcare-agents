@@ -15,7 +15,13 @@ description: Use when a provider needs to submit a prior authorization request, 
 - Handle CDS Hooks triggers from EHR order placement
 
 ## MCP Servers Used
-- **AgentCore Gateway** — for HealthLake tools (FHIR R4 patient clinical data), payor policy tools (policy search, prior auth requirements lookup), and CDS Hooks tools (EHR integration)
+- **AgentCore Gateway** — for HealthLake tools (FHIR R4 patient clinical data + a create-only `create_fhir_resource` write tool backed by the AWS Labs HealthLake MCP server), payor policy tools (policy search, dynamic prior auth requirement assessment), and CDS Hooks tools (EHR integration)
+
+## Entry points
+This skill is reached three ways, all of which converge on the same agent:
+- **CDS Hooks (EHR / sandbox)** — the public CDS Hooks REST endpoint (`GET /cds-services`, `POST /cds-services/prior-auth-order-select`) fires on order entry. The `order-select` card deep-links to the Amplify UI carrying `patientId`, `code`, `desc`, and `payor`.
+- **Amplify UI** — `/orders/prior-auth` (launched from the card or from a created order). Patient name, payer, member ID, and conditions auto-populate from HealthLake via the deterministic `/patients` API; the agent then runs the workflow.
+- **Direct chat** — invoke the agent with a free-text prior-auth request.
 
 ## Workflow: Process Prior Authorization Request
 
@@ -32,8 +38,11 @@ CDS Hooks integration (if triggered from EHR):
 
 ### Step 2: Check prior auth requirement
 Tool (via Gateway): `lookup_prior_auth_requirements`
-- Input: procedure code (CPT/HCPCS), payer_id
+- Input: `procedure_code` (CPT/HCPCS), `payor_name`, and `description` (the ordered drug/procedure text)
+- The determination is **dynamic and model-assessed for the actual submitted order** (drug class, cost, advanced imaging, surgery), grounded in payer policy when a knowledge base is configured — there is no hardcoded drug allow-list. Medications often arrive as RxNorm codes, so the `description` is the reliable signal.
 - Output: whether prior auth is required, documentation requirements
+
+This same rule is the single source of truth shared with the CDS Hooks `order-select` card.
 
 Decision: If prior auth is NOT required → inform provider and stop.
 
@@ -101,7 +110,19 @@ Structured response sections:
 6. **Next Steps** — concrete provider actions
 7. **FHIR Resources Generated** — PAS Bundle summary and ClaimResponse
 
+### Step 8: Persist the decision (USER-INITIATED only)
+The agent only *recommends*. Persisting the authorization to the patient's
+record is an explicit human action — the provider clicks **Save Authorization**
+in the UI, which writes the `ClaimResponse` via a Cognito-authorized,
+create-only endpoint (`POST /authorizations`). Do **not** auto-write the
+decision to HealthLake as part of the agent workflow. The Gateway
+`create_fhir_resource` tool exists for create-only writes (ClaimResponse/Task)
+but should only be used when explicitly directed.
+
 ## Key Conventions
+- Prior-auth requirement is **dynamic / model-assessed for the submitted order** — never a hardcoded drug or code list
+- Persistence to HealthLake is **user-initiated**, never automatic — the agent recommends; a human saves
+- Writes are **create-only** (ClaimResponse/Task); update/delete are not exposed
 - Always retrieve actual patient data from HealthLake — never fabricate clinical evidence
 - Always check payor-specific policies before making determinations
 - Low temperature (0.1) for clinical accuracy — avoid hallucinated clinical details

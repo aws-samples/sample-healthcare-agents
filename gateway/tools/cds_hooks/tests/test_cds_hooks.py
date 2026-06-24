@@ -114,7 +114,8 @@ def test_dtr_link_present_when_config_exists(combo, patient_id, coverage_id, ord
     payer_name, procedure_code = combo
     event = order_select_event(patient_id, payer_name, procedure_code, order_desc)
 
-    with patch("cds_hooks_lambda.fhir_search", side_effect=mock_fhir_search_factory(payer_name, coverage_id)):
+    with patch("cds_hooks_lambda.fhir_search", side_effect=mock_fhir_search_factory(payer_name, coverage_id)), \
+         patch("cds_hooks_lambda._requirement_from_policy", return_value=True):
         result = handle_order_select(event)
 
     cards = result.get("cards", [])
@@ -162,7 +163,8 @@ def test_no_dtr_link_when_config_missing(combo, patient_id, coverage_id, order_d
     payer_name, procedure_code = combo
     event = order_select_event(patient_id, payer_name, procedure_code, order_desc)
 
-    with patch("cds_hooks_lambda.fhir_search", side_effect=mock_fhir_search_factory(payer_name, coverage_id)):
+    with patch("cds_hooks_lambda.fhir_search", side_effect=mock_fhir_search_factory(payer_name, coverage_id)), \
+         patch("cds_hooks_lambda._requirement_from_policy", return_value=True):
         result = handle_order_select(event)
 
     cards = result.get("cards", [])

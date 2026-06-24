@@ -10,6 +10,12 @@ backend:
   # Each pattern gets its own AgentCore Runtime, Memory, and Gateway tools
   # All patterns share the same Cognito authentication and Amplify frontend
   patterns:
+    - pattern: prior-authorization-agent
+      deployment_type: docker
+      enabled: true
+    - pattern: eligibility-verification-agent
+      deployment_type: docker
+      enabled: true
     - pattern: medical-coding-agent
       deployment_type: docker
       enabled: true
@@ -33,4 +39,4 @@ backend:
   healthlake:
     read_only_mode: true # Read-only mode (blocks write operations)
     region: us-east-1 # AWS region where HealthLake datastore is located
-    datastore_id: '3aec3833b094687baabc7def9b85976b' # fhir_ds datastore ID
+    datastore_id: 'YOUR_HEALTHLAKE_DATASTORE_ID' # Set to your HealthLake FHIR datastore ID (e.g. created during setup)

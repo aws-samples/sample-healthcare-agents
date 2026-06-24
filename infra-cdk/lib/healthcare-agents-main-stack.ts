@@ -38,6 +38,9 @@ export class HealthcareAgentsMainStack extends cdk.Stack {
   public readonly sharedGateway: bedrockagentcore.CfnGateway
   public readonly sharedGatewayRole: iam.Role
   public readonly machineClient: cdk.aws_cognito.UserPoolClient
+  // Payor-policy tool Lambda — the canonical prior-auth requirement rule source,
+  // invoked by both the Prior Auth Agent (via Gateway) and CDS Hooks order-select.
+  private payorPolicyLambda!: PythonFunction
 
   constructor(scope: Construct, id: string, props: HealthcareAgentsMainStackProps) {
     const description = "Healthcare Agents on AgentCore - Shared Infrastructure (v0.3.0) (uksb-v6dos0t5g8)"
@@ -65,6 +68,7 @@ export class HealthcareAgentsMainStack extends cdk.Stack {
     // Create shared Gateway Targets (tools) that all patterns can use
     this.createHealthLakeTools(props.config, this.sharedGateway, this.sharedGatewayRole)
     this.createComprehendMedicalTools(props.config, this.sharedGateway, this.sharedGatewayRole)
+    this.createPayorPolicyTools(props.config, this.sharedGateway, this.sharedGatewayRole)
     this.createEpicFHIRTools(props.config, this.sharedGateway, this.sharedGatewayRole)
     this.createAppealsKBTools(props.config, this.sharedGateway, this.sharedGatewayRole)
 
@@ -75,6 +79,9 @@ export class HealthcareAgentsMainStack extends cdk.Stack {
       this.cognitoStack.userPoolId
     )
     this.createPlatformFeedback(props.config, this.amplifyHostingStack.amplifyUrl, userPool)
+
+    // Create public CDS Hooks REST endpoint for EHR / CDS Hooks Sandbox integration
+    this.createCdsHooksApi(props.config, this.amplifyHostingStack.amplifyUrl)
 
     // Create shared Langfuse observability secret (used by all agent patterns)
     this.createLangfuseSecret(props.config)
@@ -392,7 +399,20 @@ export class HealthcareAgentsMainStack extends cdk.Stack {
           "healthlake:ReadResource",
           "healthlake:SearchWithGet",
           "healthlake:SearchWithPost",
+          // Required by the get_patient_everything tool ($patient-everything operation)
+          "healthlake:SearchEverything",
         ],
+        resources: ["*"],
+      })
+    )
+
+    // Create-only write permission (option 1): lets the create_fhir_resource
+    // tool persist decisions (e.g. a ClaimResponse) to HealthLake. Update and
+    // Delete are intentionally NOT granted, regardless of read_only_mode.
+    healthLakeLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["healthlake:CreateResource"],
         resources: ["*"],
       })
     )
@@ -611,6 +631,98 @@ export class HealthcareAgentsMainStack extends cdk.Stack {
       credentialProviderConfigurations: [{ credentialProviderType: "GATEWAY_IAM_ROLE" }],
     })
     appealsTarget.node.addDependency(appealsLambda)
+  }
+
+  /**
+   * Create Payor Policy Tools Gateway Target (used by prior-authorization-agent).
+   *
+   * Exposes lookup_prior_auth_requirements, search_payor_policies,
+   * list_policy_documents, upload_policy_document over the Gateway so the
+   * Prior Auth Agent can ground its Step-2 prior-auth requirement check.
+   * Without a configured Bedrock Knowledge Base, lookup_prior_auth_requirements
+   * still returns results from its built-in CPT reference table.
+   */
+  private createPayorPolicyTools(
+    config: AppConfig,
+    gateway: bedrockagentcore.CfnGateway,
+    gatewayRole: iam.Role
+  ): void {
+    const payorPolicyLambda = new PythonFunction(this, "PayorPolicyLambda", {
+      functionName: `${config.stack_name_base}-payor-policy`,
+      runtime: lambda.Runtime.PYTHON_3_12,
+      entry: path.join(__dirname, "../../gateway/tools/payor_policy"),
+      handler: "handler",
+      index: "payor_policy_lambda.py",
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 512,
+      environment: {
+        // POLICY_KB_ID / POLICY_BUCKET / POLICY_DATA_SOURCE_ID are optional.
+        // When unset, the KB-backed search degrades gracefully and the
+        // requirement lookup uses its built-in CPT table.
+        LOG_LEVEL: "INFO",
+      },
+      logGroup: new logs.LogGroup(this, "PayorPolicyLambdaLogGroup", {
+        logGroupName: `/aws/lambda/${config.stack_name_base}-payor-policy`,
+        retention: logs.RetentionDays.ONE_WEEK,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+      }),
+    })
+
+    // Expose for reuse (CDS Hooks order-select delegates to this rule source)
+    this.payorPolicyLambda = payorPolicyLambda
+
+    // Allow Bedrock Knowledge Base retrieval + ingestion when a KB is configured
+    // (no-op at runtime until POLICY_KB_ID/POLICY_BUCKET are set), and InvokeModel
+    // for the dynamic prior-auth requirement assessment (no hardcoded drug list).
+    payorPolicyLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "bedrock:Retrieve",
+          "bedrock:StartIngestionJob",
+          "bedrock:InvokeModel",
+        ],
+        resources: ["*"],
+      })
+    )
+
+    payorPolicyLambda.grantInvoke(gatewayRole)
+
+    const payorPolicyToolSpec = JSON.parse(
+      require("fs").readFileSync(
+        path.join(__dirname, "../../gateway/tools/payor_policy/tool_spec.json"),
+        "utf8"
+      )
+    ).tools
+
+    const payorPolicyTarget = new bedrockagentcore.CfnGatewayTarget(this, "PayorPolicyTarget", {
+      gatewayIdentifier: gateway.attrGatewayIdentifier,
+      name: "payor-policy",
+      description: "Payor prior-authorization policy tools (requirement lookup + policy KB search)",
+      targetConfiguration: {
+        mcp: {
+          lambda: {
+            lambdaArn: payorPolicyLambda.functionArn,
+            toolSchema: {
+              inlinePayload: payorPolicyToolSpec as any,
+            },
+          },
+        },
+      },
+      credentialProviderConfigurations: [
+        {
+          credentialProviderType: "GATEWAY_IAM_ROLE",
+        },
+      ],
+    })
+
+    payorPolicyTarget.addDependency(gateway)
+    payorPolicyTarget.node.addDependency(payorPolicyLambda)
+
+    new cdk.CfnOutput(this, "PayorPolicyToolsTargetId", {
+      value: payorPolicyTarget.ref,
+      description: "Payor Policy MCP Target ID",
+    })
   }
 
   /**
@@ -935,7 +1047,7 @@ export class HealthcareAgentsMainStack extends cdk.Stack {
       description: "Platform-level feedback API for all agent patterns",
       defaultCorsPreflightOptions: {
         allowOrigins: [frontendUrl, "http://localhost:3000"],
-        allowMethods: ["POST", "OPTIONS"],
+        allowMethods: ["GET", "POST", "OPTIONS"],
         allowHeaders: ["Content-Type", "Authorization"],
       },
       deployOptions: {
@@ -992,6 +1104,93 @@ export class HealthcareAgentsMainStack extends cdk.Stack {
       }
     )
 
+    // --- Patient Search endpoint (reuses this API + Cognito authorizer) ---
+    const healthlakeRegion = config.backend?.healthlake?.region || cdk.Stack.of(this).region
+    const healthlakeDatastoreId = config.backend?.healthlake?.datastore_id || ""
+
+    const patientSearchLambda = new lambda.Function(this, "PatientSearchLambda", {
+      functionName: `${config.stack_name_base}-patient-search`,
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: "index.handler",
+      code: lambda.Code.fromAsset(path.join(__dirname, "..", "lambdas", "patient-search")),
+      timeout: cdk.Duration.seconds(30),
+      environment: {
+        HEALTHLAKE_DATASTORE_ID: healthlakeDatastoreId,
+        HEALTHLAKE_REGION: healthlakeRegion,
+        CORS_ALLOWED_ORIGINS: `${frontendUrl},http://localhost:3000`,
+      },
+      logGroup: new logs.LogGroup(this, "PatientSearchLambdaLogGroup", {
+        logGroupName: `/aws/lambda/${config.stack_name_base}-patient-search`,
+        retention: logs.RetentionDays.ONE_WEEK,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+      }),
+    })
+
+    // Allow the Lambda to read/search the HealthLake datastore
+    patientSearchLambda.addToRolePolicy(
+      new cdk.aws_iam.PolicyStatement({
+        actions: [
+          "healthlake:SearchWithGet",
+          "healthlake:SearchWithPost",
+          "healthlake:ReadResource",
+        ],
+        resources: [
+          `arn:aws:healthlake:${healthlakeRegion}:${cdk.Stack.of(this).account}:datastore/fhir/${healthlakeDatastoreId}`,
+        ],
+      })
+    )
+
+    const patientsResource = api.root.addResource("patients")
+    patientsResource.addMethod(
+      "GET",
+      new apigateway.LambdaIntegration(patientSearchLambda),
+      {
+        authorizer,
+        authorizationType: apigateway.AuthorizationType.COGNITO,
+      }
+    )
+
+    // --- Authorization write endpoint (user-initiated "Save Authorization") ---
+    // The agent recommends a decision; a human clicks Save, which POSTs the
+    // generated ClaimResponse here to persist it to HealthLake. Create-only,
+    // restricted to ClaimResponse/Task, Cognito-authorized.
+    const authorizationWriteLambda = new lambda.Function(this, "AuthorizationWriteLambda", {
+      functionName: `${config.stack_name_base}-authorization-write`,
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: "index.handler",
+      code: lambda.Code.fromAsset(path.join(__dirname, "..", "lambdas", "authorization-write")),
+      timeout: cdk.Duration.seconds(30),
+      environment: {
+        HEALTHLAKE_DATASTORE_ID: healthlakeDatastoreId,
+        HEALTHLAKE_REGION: healthlakeRegion,
+        CORS_ALLOWED_ORIGINS: `${frontendUrl},http://localhost:3000`,
+      },
+      logGroup: new logs.LogGroup(this, "AuthorizationWriteLambdaLogGroup", {
+        logGroupName: `/aws/lambda/${config.stack_name_base}-authorization-write`,
+        retention: logs.RetentionDays.ONE_WEEK,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+      }),
+    })
+
+    authorizationWriteLambda.addToRolePolicy(
+      new cdk.aws_iam.PolicyStatement({
+        actions: ["healthlake:CreateResource"],
+        resources: [
+          `arn:aws:healthlake:${healthlakeRegion}:${cdk.Stack.of(this).account}:datastore/fhir/${healthlakeDatastoreId}`,
+        ],
+      })
+    )
+
+    const authorizationsResource = api.root.addResource("authorizations")
+    authorizationsResource.addMethod(
+      "POST",
+      new apigateway.LambdaIntegration(authorizationWriteLambda),
+      {
+        authorizer,
+        authorizationType: apigateway.AuthorizationType.COGNITO,
+      }
+    )
+
     // Store feedback infrastructure info in SSM for backend stacks
     new ssm.StringParameter(this, "FeedbackTableNameParam", {
       parameterName: `/${config.stack_name_base}/feedback_table_name`,
@@ -1016,6 +1215,223 @@ export class HealthcareAgentsMainStack extends cdk.Stack {
       value: api.url,
       description: "Platform feedback API URL (shared by all patterns)",
       exportName: `${config.stack_name_base}-FeedbackApiUrl`,
+    })
+  }
+
+  /**
+   * Create a public CDS Hooks REST endpoint (CDS Hooks spec v1.0).
+   *
+   * Exposes:
+   *   GET  /cds-services        → service discovery
+   *   POST /cds-services/{id}   → invoke patient-view / order-select hooks
+   *
+   * SECURITY NOTE: This is an intentionally PUBLIC endpoint (no Cognito
+   * authorizer) because CDS Hooks clients (EHRs, the CDS Hooks Sandbox)
+   * authenticate with SMART/JWT bearer tokens, not Cognito. The Lambda
+   * performs its own bearer-token check (dev mode requires the header to be
+   * present; production verifies the JWT signature when CDS_HOOKS_REQUIRED_ISS,
+   * CDS_HOOKS_REQUIRED_AUD and CDS_HOOKS_JWKS_URL are set). The discovery
+   * endpoint is deliberately reachable without a token and returns a minimized
+   * payload. Throttling is applied at the stage level to limit abuse.
+   */
+  private createCdsHooksApi(config: AppConfig, frontendUrl: string): void {
+    const healthlakeRegion = config.backend?.healthlake?.region || cdk.Stack.of(this).region
+    const healthlakeDatastoreId = config.backend?.healthlake?.datastore_id || ""
+    const acct = cdk.Stack.of(this).account
+    const region = cdk.Stack.of(this).region
+
+    // --- Option 2: headless "run prior auth" behind a Lambda Function URL ---
+    // Lets a CDS Hooks card trigger the full Prior Authorization Agent
+    // end-to-end with NO browser login and NO multi-step UI. The agent takes
+    // ~40-90s (over API Gateway's 29s cap), so a Function URL is used.
+    // The endpoint is protected by a short-lived HMAC token that the CDS Hooks
+    // Lambda mints into the card link (see _prior_auth_run_link).
+    const priorAuthRunSecret = new secretsmanager.Secret(this, "PriorAuthRunSecret", {
+      secretName: `/${config.stack_name_base}/prior-auth-run-hmac`,
+      description: "HMAC secret used to sign prior-auth run links (Option 2)",
+      generateSecretString: { passwordLength: 48, excludePunctuation: true },
+    })
+
+    const priorAuthRunJobs = new cdk.aws_dynamodb.Table(this, "PriorAuthRunJobs", {
+      tableName: `${config.stack_name_base}-prior-auth-run-jobs`,
+      partitionKey: { name: "jobId", type: cdk.aws_dynamodb.AttributeType.STRING },
+      billingMode: cdk.aws_dynamodb.BillingMode.PAY_PER_REQUEST,
+      timeToLiveAttribute: "ttl",
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    })
+
+    const priorAuthRunLambda = new lambda.Function(this, "PriorAuthRunLambda", {
+      functionName: `${config.stack_name_base}-prior-auth-run`,
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: "prior_auth_run_lambda.handler",
+      code: lambda.Code.fromAsset(path.join(__dirname, "../../gateway/tools/prior_auth_run")),
+      timeout: cdk.Duration.minutes(5),
+      memorySize: 1024,
+      environment: {
+        STACK_NAME: config.stack_name_base,
+        RUN_SECRET_ARN: priorAuthRunSecret.secretArn,
+        JOBS_TABLE: priorAuthRunJobs.tableName,
+      },
+      logGroup: new logs.LogGroup(this, "PriorAuthRunLambdaLogGroup", {
+        logGroupName: `/aws/lambda/${config.stack_name_base}-prior-auth-run`,
+        retention: logs.RetentionDays.ONE_WEEK,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+      }),
+    })
+
+    priorAuthRunSecret.grantRead(priorAuthRunLambda)
+
+    // M2M token minting (SSM config + machine client secret) and runtime lookup
+    priorAuthRunLambda.addToRolePolicy(
+      new cdk.aws_iam.PolicyStatement({
+        actions: ["ssm:GetParameter"],
+        resources: [
+          `arn:aws:ssm:${region}:${acct}:parameter/${config.stack_name_base}/cognito_provider`,
+          `arn:aws:ssm:${region}:${acct}:parameter/${config.stack_name_base}/machine_client_id`,
+          `arn:aws:ssm:${region}:${acct}:parameter/${config.stack_name_base}/prior-authorization-agent/runtime-arn`,
+        ],
+      })
+    )
+    priorAuthRunLambda.addToRolePolicy(
+      new cdk.aws_iam.PolicyStatement({
+        actions: ["secretsmanager:GetSecretValue"],
+        resources: [
+          `arn:aws:secretsmanager:${region}:${acct}:secret:/${config.stack_name_base}/machine_client_secret*`,
+        ],
+      })
+    )
+
+    // Async job store + permission for the start handler to self-invoke the
+    // worker. Grant via a constructed ARN (not the function object) to avoid a
+    // circular dependency between the function and its role policy.
+    priorAuthRunJobs.grantReadWriteData(priorAuthRunLambda)
+    priorAuthRunLambda.addToRolePolicy(
+      new cdk.aws_iam.PolicyStatement({
+        actions: ["lambda:InvokeFunction"],
+        resources: [
+          `arn:aws:lambda:${region}:${acct}:function:${config.stack_name_base}-prior-auth-run`,
+        ],
+      })
+    )
+
+    const cdsHooksLambda = new lambda.Function(this, "CdsHooksLambda", {
+      functionName: `${config.stack_name_base}-cds-hooks`,
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: "cds_hooks_lambda.handler",
+      code: lambda.Code.fromAsset(path.join(__dirname, "../../gateway/tools/cds_hooks")),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+      environment: {
+        HEALTHLAKE_DATASTORE_ID: healthlakeDatastoreId,
+        HEALTHLAKE_REGION: healthlakeRegion,
+        // Explicit CORS allowlist (no wildcard). Includes the public CDS Hooks Sandbox.
+        CDS_HOOKS_ALLOWED_ORIGINS: `${frontendUrl},http://localhost:3000,https://sandbox.cds-hooks.org`,
+        // Canonical prior-auth requirement rule source (single source of truth,
+        // shared with the Prior Auth Agent). order-select delegates to it.
+        PAYOR_POLICY_LAMBDA_NAME: this.payorPolicyLambda.functionName,
+        // Deep-link target so the EHR card routes to the agent-backed assessment.
+        APP_URL: frontendUrl,
+        // Option 2 HMAC secret to sign card links; the run URL is set below
+        // once the public API Gateway route exists (addEnvironment).
+        RUN_SECRET_ARN: priorAuthRunSecret.secretArn,
+      },
+      logGroup: new logs.LogGroup(this, "CdsHooksLambdaLogGroup", {
+        logGroupName: `/aws/lambda/${config.stack_name_base}-cds-hooks`,
+        retention: logs.RetentionDays.ONE_WEEK,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+      }),
+    })
+
+    // Allow CDS order-select to invoke the canonical payor-policy rule Lambda
+    this.payorPolicyLambda.grantInvoke(cdsHooksLambda)
+
+    // Allow the CDS Hooks Lambda to read the HMAC secret so it can sign the
+    // Option 2 "run prior auth" card links.
+    priorAuthRunSecret.grantRead(cdsHooksLambda)
+
+    // Allow the Lambda to read/search the HealthLake datastore (FHIR R4)
+    cdsHooksLambda.addToRolePolicy(
+      new cdk.aws_iam.PolicyStatement({
+        actions: [
+          "healthlake:SearchWithGet",
+          "healthlake:SearchWithPost",
+          "healthlake:ReadResource",
+        ],
+        resources: [
+          `arn:aws:healthlake:${healthlakeRegion}:${cdk.Stack.of(this).account}:datastore/fhir/${healthlakeDatastoreId}`,
+        ],
+      })
+    )
+
+    // Dedicated public REST API for CDS Hooks (no Cognito authorizer)
+    const cdsApi = new apigateway.RestApi(this, "CdsHooksApi", {
+      restApiName: `${config.stack_name_base}-cds-hooks-api`,
+      description: "Public CDS Hooks endpoint (discovery + patient-view/order-select)",
+      defaultCorsPreflightOptions: {
+        // CDS Hooks discovery is a public endpoint; allow any origin for preflight.
+        allowOrigins: apigateway.Cors.ALL_ORIGINS,
+        allowMethods: ["GET", "POST", "OPTIONS"],
+        allowHeaders: ["Content-Type", "Authorization"],
+      },
+      deployOptions: {
+        stageName: "prod",
+        throttlingRateLimit: 50,
+        throttlingBurstLimit: 100,
+        loggingLevel: apigateway.MethodLoggingLevel.INFO,
+        metricsEnabled: true,
+        accessLogDestination: new apigateway.LogGroupLogDestination(
+          new logs.LogGroup(this, "CdsHooksApiAccessLogGroup", {
+            logGroupName: `/aws/apigateway/${config.stack_name_base}-cds-hooks-api-access`,
+            retention: logs.RetentionDays.ONE_WEEK,
+            removalPolicy: cdk.RemovalPolicy.DESTROY,
+          })
+        ),
+        accessLogFormat: apigateway.AccessLogFormat.jsonWithStandardFields(),
+        tracingEnabled: true,
+      },
+    })
+
+    const integration = new apigateway.LambdaIntegration(cdsHooksLambda)
+
+    // GET /cds-services  → discovery
+    const cdsServices = cdsApi.root.addResource("cds-services")
+    cdsServices.addMethod("GET", integration)
+
+    // POST /cds-services/{id}  → hook invocation (patient-view / order-select)
+    const cdsServiceById = cdsServices.addResource("{id}")
+    cdsServiceById.addMethod("POST", integration)
+
+    // Option 2: GET /prior-auth-run → start (HMAC-verified) or poll (jobId) the
+    // headless Prior Auth Agent. Public (like discovery); the agent run itself
+    // is gated by the short-lived HMAC token minted into the card link.
+    const priorAuthRunResource = cdsApi.root.addResource("prior-auth-run")
+    priorAuthRunResource.addMethod("GET", new apigateway.LambdaIntegration(priorAuthRunLambda))
+
+    // Now that the public route exists, give the CDS Hooks Lambda the run URL so
+    // it can build the card's "Submit Prior Authorization" link. Construct the
+    // URL from restApiId + stage (not cdsApi.url) to avoid a circular dependency
+    // (the API's methods already depend on this Lambda).
+    cdsHooksLambda.addEnvironment(
+      "PRIOR_AUTH_RUN_URL",
+      `https://${cdsApi.restApiId}.execute-api.${region}.amazonaws.com/prod/prior-auth-run`
+    )
+
+    new ssm.StringParameter(this, "CdsHooksApiUrlParam", {
+      parameterName: `/${config.stack_name_base}/cds-hooks-api-url`,
+      stringValue: cdsApi.url,
+      description: "Public CDS Hooks API Gateway URL",
+    })
+
+    new cdk.CfnOutput(this, "CdsHooksApiUrl", {
+      value: cdsApi.url,
+      description: "Public CDS Hooks API URL (discovery: GET {url}cds-services)",
+      exportName: `${config.stack_name_base}-CdsHooksApiUrl`,
+    })
+
+    new cdk.CfnOutput(this, "PriorAuthRunUrl", {
+      value: `https://${cdsApi.restApiId}.execute-api.${region}.amazonaws.com/prod/prior-auth-run`,
+      description: "Option 2 headless prior-auth agent endpoint (HMAC-signed links, async)",
+      exportName: `${config.stack_name_base}-PriorAuthRunUrl`,
     })
   }
 

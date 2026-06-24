@@ -24,11 +24,12 @@ export default function SafetyAgentPage() {
         }
         const config = await response.json()
 
-        if (!config.agentRuntimeArn) {
+        const safetyArn = config.agents?.["hospital-safety-agent"]?.runtimeArn || config.agentRuntimeArn
+        if (!safetyArn) {
           throw new Error("Agent Runtime ARN not found in configuration")
         }
 
-        await setAgentConfig(config.agentRuntimeArn, config.awsRegion || "us-east-1", config.agentPattern)
+        await setAgentConfig(safetyArn, config.awsRegion || "us-east-1", config.agents?.["hospital-safety-agent"] ? "hospital-safety-agent" : config.agentPattern)
         setConfigLoaded(true)
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "Unknown error"

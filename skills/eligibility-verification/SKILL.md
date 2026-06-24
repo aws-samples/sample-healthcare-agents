@@ -35,6 +35,12 @@ Retrieve from HealthLake Coverage resources:
 - Coverage effective dates (start and end)
 - Coverage status (active, cancelled, entered-in-error)
 
+> Deterministic auto-populate: the app's `/patients?q=<id>` API resolves
+> demographics **and** active Coverage (payer + member ID) and conditions in a
+> single fast FHIR call. Prefer this for pre-filling intake fields rather than
+> asking the model to parse free text. The agent is still the source of truth
+> for the eligibility *assessment*.
+
 Decision: If coverage is NOT active → stop and report to provider with recommended next steps.
 
 ### Step 3: Benefits check

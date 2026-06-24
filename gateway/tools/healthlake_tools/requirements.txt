@@ -1,2 +1,5 @@
 boto3>=1.34.0
 requests>=2.32.4
+# AWS Labs HealthLake MCP server — its HealthLakeClient backs the
+# create_fhir_resource tool (option 1: persist decisions to HealthLake).
+awslabs.healthlake-mcp-server==0.0.16

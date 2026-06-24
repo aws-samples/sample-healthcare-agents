@@ -159,6 +159,35 @@ def get_patient_appointments(patient_id):
     return appointments
 
 
+def _format_patient_name(name_field):
+    """Build a human-readable patient name from a FHIR HumanName array.
+
+    Falls back to given+family when the `text` field is absent (common for
+    Synthea-generated data). Strips trailing digits Synthea appends to names.
+    """
+    import re as _re
+
+    if not name_field:
+        return None
+    entry = name_field[0] if isinstance(name_field, list) else name_field
+    if not isinstance(entry, dict):
+        return None
+
+    raw = entry.get("text")
+    if not raw:
+        given = " ".join(entry.get("given", []) or [])
+        family = entry.get("family", "") or ""
+        raw = f"{given} {family}".strip()
+
+    if not raw:
+        return None
+
+    # Synthea appends digits to names (e.g. "Dexter530 Little434").
+    cleaned = _re.sub(r"\d+", "", raw)
+    cleaned = _re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned or None
+
+
 def advanced_patient_search(search_params, include_params=None, revinclude_params=None):
     """Advanced patient search with modifiers and includes"""
     params = search_params.copy()
@@ -220,9 +249,7 @@ def advanced_patient_search(search_params, include_params=None, revinclude_param
             patients.append(
                 {
                     "id": resource.get("id"),
-                    "name": resource.get("name", [{}])[0].get("text")
-                    if resource.get("name")
-                    else None,
+                    "name": _format_patient_name(resource.get("name")),
                     "birthDate": resource.get("birthDate"),
                     "gender": resource.get("gender"),
                     "active": resource.get("active"),
@@ -285,6 +312,36 @@ def get_patient_everything(patient_id, start_date=None, end_date=None):
         "date_range": {"start": start_date, "end": end_date}
         if start_date or end_date
         else None,
+    }
+
+
+def create_fhir_resource(resource_type, resource_data):
+    """Create a new FHIR resource in HealthLake (CREATE-ONLY).
+
+    Backed by the AWS Labs HealthLake MCP server's HealthLakeClient
+    (awslabs.healthlake_mcp_server.fhir_operations), invoked behind the
+    AgentCore Gateway. Used to persist a prior-authorization decision — e.g. a
+    FHIR ClaimResponse or Task — onto the patient's record. Update/Delete are
+    intentionally not exposed.
+    """
+    if not HEALTHLAKE_DATASTORE_ID:
+        raise Exception("HEALTHLAKE_DATASTORE_ID environment variable not set")
+    if not isinstance(resource_data, dict) or not resource_data:
+        raise Exception("resource_data must be a non-empty FHIR resource object")
+
+    import asyncio
+
+    from awslabs.healthlake_mcp_server.fhir_operations import HealthLakeClient
+
+    client = HealthLakeClient(region_name=aws_region)
+    created = asyncio.run(
+        client.create_resource(HEALTHLAKE_DATASTORE_ID, resource_type, resource_data)
+    )
+    return {
+        "created": True,
+        "resourceType": created.get("resourceType", resource_type),
+        "id": created.get("id"),
+        "meta": created.get("meta"),
     }
 
 
@@ -352,6 +409,10 @@ def handler(event, context):
             start_date = event.get("start_date")
             end_date = event.get("end_date")
             result = get_patient_everything(event["patient_id"], start_date, end_date)
+        elif tool_name == "create_fhir_resource":
+            result = create_fhir_resource(
+                event["resource_type"], event.get("resource_data", {})
+            )
         else:
             return {
                 "content": [{"type": "text", "text": f"Unknown tool: {tool_name}"}],
