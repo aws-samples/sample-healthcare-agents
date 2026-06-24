@@ -11,6 +11,7 @@ import { useAuthToken } from "@/lib/useAuthToken"
 import { upsertOrder } from "@/lib/ordersStore"
 import { GlobalContextProvider } from "@/app/context/GlobalContext"
 import { invokeAgentCore, generateSessionId, setAgentConfig } from "@/services/agentCoreService"
+import { usePatient } from "@/app/context/PatientContext"
 import {
   Shield, ArrowLeft, Loader2, CheckCircle, AlertCircle, ArrowRight,
   User, Stethoscope, Building2, Package, Activity, FileText, Search
@@ -19,9 +20,11 @@ import { useRouter } from "next/navigation"
 
 function NewOrderForm() {
   const { isAuthenticated, signIn } = useAuth()
-  const { accessToken, userId } = useAuthToken()
+  const { accessToken, userId, idToken } = useAuthToken()
+  const { patient } = usePatient()
   const router = useRouter()
   const [configLoaded, setConfigLoaded] = useState(false)
+  const [apiUrl, setApiUrl] = useState<string | null>(null)
   const [sessionId] = useState(() => generateSessionId())
   const [error, setError] = useState<string | null>(null)
 
@@ -56,14 +59,26 @@ function NewOrderForm() {
         const r = await fetch("/aws-exports.json")
         if (!r.ok) throw new Error("Failed to load config")
         const c = await r.json()
-        const arn = c.priorAuthRuntimeArn || c.agentRuntimeArn
+        const arn = c.agents?.["prior-authorization-agent"]?.runtimeArn || c.priorAuthRuntimeArn || c.agentRuntimeArn
         if (!arn) throw new Error("Runtime ARN not found")
         await setAgentConfig(arn, c.awsRegion || "us-east-1", "prior-authorization-agent")
+        const base = c.feedbackApiUrl || c.patientApiUrl
+        if (base) setApiUrl(base.endsWith("/") ? base : base + "/")
         setConfigLoaded(true)
       } catch (e) { setError(e instanceof Error ? e.message : "Config error") }
     }
     if (isAuthenticated) loadConfig()
   }, [isAuthenticated])
+
+  // Prefill patient identity from the selected-patient context (if any).
+  useEffect(() => {
+    if (patient?.id) {
+      setPatientId(patient.id)
+      if (patient.name) setPatientName(patient.name)
+      if (patient.payorName) setPayorName(patient.payorName)
+      if (patient.memberId) setMemberId(patient.memberId)
+    }
+  }, [patient])
 
   const callAgent = async (prompt: string): Promise<string> => {
     if (!accessToken || !userId) throw new Error("Auth required. Sign in again.")
@@ -72,73 +87,40 @@ function NewOrderForm() {
     return result
   }
 
-  /* Patient Lookup */
+  /* Patient Lookup — deterministic call to the /patients API (fast, reliable).
+     Returns demographics + active Coverage (payer/member ID) + conditions, so
+     the form auto-populates without depending on slow LLM text parsing. */
   const lookupPatient = async () => {
-    if (!patientId.trim() || !configLoaded) return
+    const id = patientId.trim()
+    if (!id || !apiUrl) return
     setLookupLoading(true); setLookupDone(false); setError(null)
     try {
-      const resp = await callAgent(
-        `Look up patient ${patientId} in HealthLake. Use the get_patient_conditions, get_patient_medications, and get_patient_allergies tools. Also retrieve the patient resource directly to get their name (look in the name array for family and given fields). Return the following in EXACTLY this format:
-PATIENT_NAME: <given name> <family name> (strip any numbers from the name)
-DATE_OF_BIRTH: <YYYY-MM-DD>
-GENDER: <male or female>
-PAYOR_NAME: <insurance company name or "Not found">
-MEMBER_ID: <member ID or "Not found">
-
-Then list their active conditions as bullet points.`
-      )
-      console.log("[LOOKUP] Agent response:", resp.substring(0, 500))
-
-      // Parse name
-      const namePatterns = [
-        /\*\*PATIENT_NAME:?\*\*:?\s*(.+)/i,
-        /PATIENT_NAME:?\s*\**(.+?)\**/i,
-        /(?:patient\s*name|name)[:\s]+\**([A-Za-z\d]+\s+[A-Za-z\d]+)/i,
-      ]
-      for (const p of namePatterns) {
-        const m = resp.match(p)
-        if (m) {
-          const cleaned = m[1].replace(/\*\*/g, '').replace(/\d+/g, ' ').replace(/\s+/g, ' ').trim()
-          if (cleaned.length > 1) { setPatientName(cleaned); break }
-        }
-      }
-
-      // Parse payor
-      const payorPatterns = [/\*\*PAYOR_NAME:?\*\*:?\s*(.+)/i, /PAYOR_NAME:?\s*\**(.+?)\**/i]
-      for (const p of payorPatterns) {
-        const m = resp.match(p)
-        if (m && !m[1].toLowerCase().includes("not found")) {
-          setPayorName(m[1].replace(/\*\*/g, '').trim()); break
-        }
-      }
-
-      // Parse member ID
-      const memberPatterns = [/\*\*MEMBER_ID:?\*\*:?\s*(.+)/i, /MEMBER_ID:?\s*\**(.+?)\**/i]
-      for (const p of memberPatterns) {
-        const m = resp.match(p)
-        if (m && !m[1].toLowerCase().includes("not found")) {
-          setMemberId(m[1].replace(/\*\*/g, '').trim()); break
-        }
-      }
-
-      // Parse conditions
-      const conditions: string[] = []
-      const lines = resp.split('\n')
-      let inConditions = false
-      for (const line of lines) {
-        if (line.toLowerCase().includes('condition')) { inConditions = true; continue }
-        if (inConditions && (line.startsWith('#') || line.startsWith('**'))) { if (conditions.length > 0) break }
-        if (inConditions) {
-          const clean = line.replace(/^[-•*]\s*/, '').replace(/\*\*/g, '').trim()
-          if (clean.length > 3) conditions.push(clean)
-        }
-      }
-      setPatientConditions(conditions)
+      const resp = await fetch(`${apiUrl}patients?q=${encodeURIComponent(id)}`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      })
+      if (!resp.ok) throw new Error(`Patient lookup failed (HTTP ${resp.status})`)
+      const data = await resp.json()
+      const p = (data.patients || [])[0]
+      if (!p) { setError("No patient found for that ID."); return }
+      if (p.name) setPatientName(p.name)
+      if (p.payorName) setPayorName(p.payorName)
+      if (p.memberId) setMemberId(p.memberId)
+      if (Array.isArray(p.conditions)) setPatientConditions(p.conditions)
       setLookupDone(true)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Patient lookup failed")
     } finally { setLookupLoading(false) }
   }
+
+  /* Auto-trigger the lookup once a full patient ID has been entered/pasted. */
+  useEffect(() => {
+    if (!apiUrl || !idToken) return
+    const id = patientId.trim()
+    if (!/^[0-9a-fA-F-]{16,}$/.test(id)) return
+    const t = setTimeout(() => { lookupPatient() }, 600)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientId, apiUrl, idToken])
 
   /* Eligibility Check — runs automatically when order is submitted */
   const checkEligibilityAndSubmit = async () => {

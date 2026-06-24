@@ -30,8 +30,8 @@ USER bedrock_agentcore
 
 EXPOSE 8080
 
-# Copy agent code files
-COPY patterns/prior-authorization-agent/prior_authorization_agent.py .
+# Copy agent code files (agent + all local modules it imports)
+COPY patterns/prior-authorization-agent/*.py ./
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \

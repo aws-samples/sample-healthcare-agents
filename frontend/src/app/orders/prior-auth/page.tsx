@@ -100,13 +100,22 @@ function LoadingScreen({ message }: { message: string }) {
 
 function PriorAuthWorkflow() {
   const { isAuthenticated, signIn } = useAuth()
-  const { accessToken, userId } = useAuthToken()
+  const { accessToken, userId, idToken } = useAuthToken()
   const router = useRouter()
   const searchParams = useSearchParams()
   const orderId = searchParams.get("id") || ""
+  // CDS Hooks deep-link params: when launched from an EHR order-select card,
+  // there's no local order — synthesize one from patientId + order context.
+  // code is often empty for medications (RxNorm, not CPT), so desc/payor carry
+  // the actual order name and payer the agent workflow needs.
+  const linkPatientId = searchParams.get("patientId") || ""
+  const linkCode = searchParams.get("code") || ""
+  const linkDesc = searchParams.get("desc") || ""
+  const linkPayor = searchParams.get("payor") || ""
 
   const [order, setOrder] = useState<any>(null)
   const [configLoaded, setConfigLoaded] = useState(false)
+  const [apiUrl, setApiUrl] = useState<string | null>(null)
   const [sessionId] = useState(() => generateSessionId())
   const [currentStep, setCurrentStep] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
@@ -123,6 +132,10 @@ function PriorAuthWorkflow() {
   const [questionnaireResponse, setQuestionnaireResponse] = useState<FHIRQuestionnaireResponse | null>(null)
   const [pasBundleJson, setPasBundleJson] = useState<string | null>(null)
   const [claimResponseJson, setClaimResponseJson] = useState<string | null>(null)
+  // User-initiated "Save Authorization to HealthLake" state.
+  const [savingAuth, setSavingAuth] = useState(false)
+  const [savedAuthId, setSavedAuthId] = useState<string | null>(null)
+  const [saveAuthError, setSaveAuthError] = useState<string | null>(null)
 
   // Remediation / compliance fix state
   const [supplementalNotes, setSupplementalNotes] = useState("")
@@ -135,17 +148,59 @@ function PriorAuthWorkflow() {
     if (orderId) {
       const found = getOrder(orderId)
       setOrder(found || null)
+    } else if (linkPatientId) {
+      // Launched from a CDS Hooks order-select card — build a transient order
+      // so the agent-backed workflow can run for this patient + order.
+      setOrder({
+        id: "",
+        patientId: linkPatientId,
+        patientName: linkPatientId,
+        code: linkCode,
+        description: linkDesc || linkCode,
+        payorName: linkPayor,
+        _fromCdsHooks: true,
+      })
     }
-  }, [orderId])
+  }, [orderId, linkPatientId, linkCode, linkDesc, linkPayor])
+
+  // For CDS-launched orders, resolve the patient's real name + active Coverage
+  // (payer/member ID) from HealthLake via the deterministic /patients API, so
+  // the header/fields auto-populate instead of showing the raw patient UUID.
+  useEffect(() => {
+    async function enrich() {
+      if (!order?._fromCdsHooks || order._enriched || !apiUrl || !idToken) return
+      try {
+        const r = await fetch(`${apiUrl}patients?q=${encodeURIComponent(order.patientId)}`, {
+          headers: { Authorization: `Bearer ${idToken}` },
+        })
+        if (!r.ok) return
+        const data = await r.json()
+        const p = (data.patients || [])[0]
+        if (!p) return
+        setOrder((o: any) => ({
+          ...o,
+          patientName: p.name || o.patientName,
+          payorName: o.payorName || p.payorName || "",
+          memberId: p.memberId || o.memberId,
+          _enriched: true,
+        }))
+      } catch {
+        /* non-fatal — the agent steps still gather clinical data */
+      }
+    }
+    enrich()
+  }, [order, apiUrl, idToken])
 
   useEffect(() => {
     async function loadConfig() {
       try {
         const r = await fetch("/aws-exports.json"); if (!r.ok) throw new Error("Config load failed")
         const c = await r.json()
-        const arn = c.priorAuthRuntimeArn || c.agentRuntimeArn
+        const arn = c.agents?.["prior-authorization-agent"]?.runtimeArn || c.priorAuthRuntimeArn || c.agentRuntimeArn
         if (!arn) throw new Error("Runtime ARN not found")
         await setAgentConfig(arn, c.awsRegion || "us-east-1", "prior-authorization-agent")
+        const base = c.feedbackApiUrl || c.patientApiUrl
+        if (base) setApiUrl(base.endsWith("/") ? base : base + "/")
         setConfigLoaded(true)
       } catch (e) { setError(e instanceof Error ? e.message : "Config error") }
     }
@@ -221,7 +276,7 @@ function PriorAuthWorkflow() {
       if (bundleMatch) { try { setPasBundleJson(JSON.stringify(JSON.parse(bundleMatch[1]), null, 2)) } catch {} }
       const crMatch = resp.match(/CLAIM_RESPONSE_JSON:\s*(\{[\s\S]*?\})\s*$/)
       if (crMatch) { try { setClaimResponseJson(JSON.stringify(JSON.parse(crMatch[1]), null, 2)) } catch {} }
-      updateOrder(orderId, { paStatus: status === 'review' ? 'pended' : status, paDecision: decisionData })
+      if (orderId) updateOrder(orderId, { paStatus: status === 'review' ? 'pended' : status, paDecision: decisionData })
     } catch (e) { setError(e instanceof Error ? e.message : "Error"); setCurrentStep(2) }
     finally { setIsLoading(false) }
   }
@@ -251,6 +306,51 @@ Re-evaluate the policy compliance with this new information. List: 1) Requiremen
       setEditingCriteria(false)
     } catch (e) { setError(e instanceof Error ? e.message : "Re-evaluation failed") }
     finally { setReEvaluating(false) }
+  }
+
+  /* User-initiated persistence: writes a ClaimResponse to the record only when
+     the user explicitly clicks Save. Uses the agent-generated ClaimResponse if
+     it parsed cleanly; otherwise synthesizes a minimal valid one from the
+     decision + order so Save always works (LLM JSON output is unreliable). */
+  const buildClaimResponse = (): any => {
+    if (claimResponseJson) {
+      try { return JSON.parse(claimResponseJson) } catch { /* fall through */ }
+    }
+    const outcome = "complete"
+    const dispositionPrefix =
+      decision.status === "approved" ? "Authorization recommended"
+      : decision.status === "denied" ? "Authorization denied"
+      : "Additional documentation required"
+    return {
+      resourceType: "ClaimResponse",
+      status: "active",
+      type: { coding: [{ system: "http://terminology.hl7.org/CodeSystem/claim-type", code: "professional" }] },
+      use: "preauthorization",
+      patient: { reference: `Patient/${order.patientId}` },
+      created: new Date().toISOString().slice(0, 10),
+      insurer: { display: order.payorName || "Unknown payer" },
+      outcome,
+      disposition: `${dispositionPrefix}: ${decision.summary || order.description || order.code || ""}`.slice(0, 250),
+    }
+  }
+
+  const saveAuthorization = async () => {
+    if (!apiUrl || !idToken) { setSaveAuthError("Save endpoint not configured."); return }
+    setSavingAuth(true); setSaveAuthError(null)
+    try {
+      const resource = buildClaimResponse()
+      const r = await fetch(`${apiUrl}authorizations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ resource }),
+      })
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(data.detail || data.error || `Save failed (HTTP ${r.status})`)
+      setSavedAuthId(data.id || "saved")
+      if (orderId) updateOrder(orderId, { claimResponseId: data.id })
+    } catch (e) {
+      setSaveAuthError(e instanceof Error ? e.message : "Save failed")
+    } finally { setSavingAuth(false) }
   }
 
   if (!isAuthenticated) return (
@@ -501,6 +601,24 @@ Re-evaluate the policy compliance with this new information. List: 1) Requiremen
                 <h3 className="text-sm font-bold text-gray-600 uppercase tracking-wider">FHIR Resources (Da Vinci PAS)</h3>
                 {pasBundleJson && <details className="bg-gray-50 rounded-lg border"><summary className="px-4 py-2 text-sm font-medium text-gray-500 cursor-pointer">PAS Bundle JSON</summary><pre className="px-4 py-3 border-t text-xs text-gray-600 whitespace-pre-wrap overflow-x-auto max-h-64">{pasBundleJson}</pre></details>}
                 {claimResponseJson && <details className="bg-gray-50 rounded-lg border"><summary className="px-4 py-2 text-sm font-medium text-gray-500 cursor-pointer">ClaimResponse JSON</summary><pre className="px-4 py-3 border-t text-xs text-gray-600 whitespace-pre-wrap overflow-x-auto max-h-64">{claimResponseJson}</pre></details>}
+              </div>
+            )}
+            {decision.status && decision.status !== 'pending' && (
+              <div className="rounded-xl border-2 border-blue-200 bg-blue-50/40 p-4">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <p className="font-semibold text-blue-800">Save Authorization</p>
+                    <p className="text-xs text-gray-600">The AI agent only recommends the decision. Click to persist this authorization (ClaimResponse) to the patient's record — this is the only action that writes to the record.</p>
+                  </div>
+                  {savedAuthId ? (
+                    <span className="inline-flex items-center gap-2 text-green-700 text-sm font-medium"><CheckCircle className="h-4 w-4" /> Saved (ID: {savedAuthId})</span>
+                  ) : (
+                    <Button onClick={saveAuthorization} disabled={savingAuth} className="bg-blue-600 hover:bg-blue-700">
+                      {savingAuth ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving...</> : <><Save className="h-4 w-4 mr-2" /> Save Authorization</>}
+                    </Button>
+                  )}
+                </div>
+                {saveAuthError && <p className="text-sm text-red-600 mt-2">{saveAuthError}</p>}
               </div>
             )}
             <div className="flex flex-wrap gap-3 pt-4">

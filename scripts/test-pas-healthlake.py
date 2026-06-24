@@ -3,18 +3,25 @@
 Test script for HealthLake native $submit and $inquire PAS operations.
 
 Usage:
-  AWS_PROFILE=healthcare-deploy python3 scripts/test-pas-healthlake.py
+  AWS_PROFILE=healthcare-deploy HEALTHLAKE_DATASTORE_ID=<your-datastore-id> \
+    python3 scripts/test-pas-healthlake.py
 """
 
 import json
+import os
 import sys
 import boto3
 from botocore.auth import SigV4Auth
 from botocore.awsrequest import AWSRequest
 from botocore.httpsession import URLLib3Session
 
-REGION = "us-east-1"
-DATASTORE_ID = "e3ffec9a66caf24257c8da76693b7ebf"
+REGION = os.getenv("HEALTHLAKE_REGION", "us-east-1")
+DATASTORE_ID = os.getenv("HEALTHLAKE_DATASTORE_ID")
+if not DATASTORE_ID:
+    sys.exit(
+        "Set the HEALTHLAKE_DATASTORE_ID environment variable to your "
+        "HealthLake FHIR datastore ID before running this script."
+    )
 ENDPOINT = f"https://healthlake.{REGION}.amazonaws.com"
 
 session = boto3.Session()

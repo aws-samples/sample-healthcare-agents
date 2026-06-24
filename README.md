@@ -183,6 +183,83 @@ cdk deploy --all
 
 For detailed deployment instructions, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
+> **HealthLake datastore ID at deploy time.** Keep `config.yaml` sanitized
+> (`YOUR_HEALTHLAKE_DATASTORE_ID`) and supply the real value as an environment
+> override when deploying the backend so it never lands in source control:
+>
+> ```bash
+> HEALTHLAKE_DATASTORE_ID=<your-datastore-id> \
+>   cdk deploy healthcare-agents-stack --require-approval never
+> ```
+
+## Testing the Prior Authorization & Eligibility Flows
+
+After deploying, grab the relevant endpoints from the CloudFormation stack
+outputs (the names below match the CDK outputs):
+
+```bash
+# CDS Hooks REST endpoint (discovery + patient-view + order-select)
+aws cloudformation describe-stacks \
+  --stack-name healthcare-agents-stack \
+  --query "Stacks[0].Outputs[?OutputKey=='CdsHooksApiUrl'].OutputValue" \
+  --output text
+
+# Amplify web app URL
+aws cloudformation describe-stacks \
+  --stack-name healthcare-agents-stack \
+  --query "Stacks[0].Outputs[?OutputKey=='AmplifyUrl'].OutputValue" \
+  --output text
+```
+
+The CDS Hooks **discovery** endpoint is `GET {CdsHooksApiUrl}cds-services`.
+
+### 1. In-app prior authorization (Amplify UI)
+
+1. Open the **AmplifyUrl** in your browser and sign in (Cognito hosted UI).
+2. Go to **New Order**.
+3. Paste a patient ID from your HealthLake datastore. The form calls
+   `/patients?q=<id>` and auto-populates the patient name, payer, member ID,
+   and active conditions from HealthLake (demographics + active `Coverage` +
+   `Condition` resources).
+4. Enter the procedure/drug code and submit. The order routes to the
+   **prior-authorization wizard**, which invokes the Prior Authorization Agent.
+5. The agent gathers clinical data, looks up payor policy via
+   `lookup_prior_auth_requirements` (a model-assessed, per-medication
+   determination — there is no hardcoded drug list), assesses medical
+   necessity, and returns a recommendation with its reasoning streamed live.
+6. Review the recommendation. The decision is **user-initiated** — click
+   **Save Authorization** to persist a FHIR `ClaimResponse`/`Task` back to
+   HealthLake via the authenticated `POST /authorizations` endpoint. Nothing is
+   written automatically.
+
+### 2. CDS Hooks flow (EHR-style launch)
+
+This exercises the same agent from a CDS Hooks card, as an EHR would.
+
+1. Open the [CDS Hooks Sandbox](https://sandbox.cds-hooks.org/) in an
+   **incognito/private window** (avoids a cached patient context).
+2. Configure the sandbox:
+   - **Discovery endpoint**: the `CdsHooksApiUrl` output above.
+   - **FHIR server**: a SMART R4 sandbox (e.g.
+     `https://launch.smarthealthit.org/v/r4/fhir`) with your test patient
+     loaded. SMART sandboxes reset periodically, so re-import the patient if
+     the patient picker reappears.
+   - **Patient**: select your test patient.
+3. Place a medication/procedure order that requires prior authorization. The
+   `order-select` hook fires and the agent-backed service returns a card.
+4. Click **Submit Prior Authorization (AI agent)**. The card links into the
+   **Amplify UI** prior-auth wizard with the patient ID, code, description, and
+   payor pre-filled from the card context, then continues as in flow 1
+   (review → **Save Authorization**).
+
+### 3. Eligibility verification
+
+1. In the Amplify UI, open **Eligibility**.
+2. Enter (or paste) the patient ID — the `/patients?q=<id>` lookup
+   auto-populates demographics and active coverage.
+3. Submit to run the Eligibility Verification Agent, which checks active
+   coverage, plan details, benefits, and cost sharing and streams its findings.
+
 ## Project Structure
 
 ```
